@@ -4,10 +4,11 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
 const NAV_ITEMS = [
-  { href: '/admin',         label: 'Dashboard',     icon: '📊' },
-  { href: '/admin/upload',  label: 'Upload Photo',  icon: '📷' },
-  { href: '/admin/embeds',  label: 'Add Embed',     icon: '🔗' },
-  { href: '/admin/posts',   label: 'Manage Posts',  icon: '📝' },
+  { href: '/admin',           label: 'Dashboard',     icon: '📊' },
+  { href: '/admin/upload',    label: 'Upload Photo',  icon: '📷' },
+  { href: '/admin/embeds',    label: 'Add Embed',     icon: '🔗' },
+  { href: '/admin/stories',   label: 'Stories',       icon: '📖' },
+  { href: '/admin/posts',     label: 'Manage Posts',  icon: '📝' },
 ];
 
 export default function AdminNav() {

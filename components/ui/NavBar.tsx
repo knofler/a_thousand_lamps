@@ -5,10 +5,10 @@ import { useState } from 'react';
 import ThemeToggle from './ThemeToggle';
 
 const NAV_LINKS = [
-  { href: '/programs',     label: 'Programs' },
-  { href: '/story',        label: 'Our Story' },
-  { href: '/transparency', label: 'Transparency' },
-  { href: '/about',        label: 'About' },
+  { href: '/programs',    label: 'Programs' },
+  { href: '/post/story',  label: 'Stories' },
+  { href: '/transparency',label: 'Transparency' },
+  { href: '/about',       label: 'About' },
 ];
 
 export default function NavBar() {
