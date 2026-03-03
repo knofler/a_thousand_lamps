@@ -59,13 +59,9 @@ export default function HomeTeaserEmbed({ story, index }: Props) {
           )}
         </div>
 
-        {story.title ? (
+        {story.title && (
           <h3 className="font-serif text-lg font-bold text-white leading-snug mb-2">
             {story.title}
-          </h3>
-        ) : (
-          <h3 className="font-serif text-lg font-bold text-white leading-snug mb-2 opacity-40 italic">
-            Field Update
           </h3>
         )}
 
