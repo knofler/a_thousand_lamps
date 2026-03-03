@@ -16,7 +16,7 @@ services:
       - "3300:3000"
     environment:
       - NODE_ENV=development
-      - MONGODB_URI=mongodb://mongo:27017/athousandlamps
+      - MONGODB_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-a_thousand_lamp_26}@mongo:27017/athousandlamps?authSource=admin
       - ADMIN_SECRET_TOKEN=${ADMIN_SECRET_TOKEN:-dev_secret_123}
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
@@ -37,6 +37,9 @@ services:
     restart: unless-stopped
     ports:
       - "27090:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD:-a_thousand_lamp_26}
     volumes:
       - mongo_data:/data/db
     healthcheck:
