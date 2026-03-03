@@ -28,8 +28,12 @@ async function getRecentStories(): Promise<StoryDoc[]> {
   try {
     await connectDB();
     // Prefer posts with an image — sort imageUrl descending puts set-fields first
-    const posts = await Post.find({ isPublished: true, type: { $in: ['story', 'embed'] } })
-      .sort({ imageUrl: -1, createdAt: -1 })
+    const posts = await Post.find({
+      isPublished: true,
+      type: { $in: ['story', 'embed'] },
+      imageUrl: { $exists: true, $nin: [null, ''] },
+    })
+      .sort({ createdAt: -1 })
       .limit(3)
       .lean();
     return JSON.parse(JSON.stringify(posts));
@@ -86,9 +90,28 @@ export default async function HomePage() {
           </div>
 
           {stories.length === 0 ? (
-            <div className="rounded-2xl border p-12 text-center" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
-              <div className="text-4xl mb-3 opacity-20">🪔</div>
-              <p className="text-sm" style={{ color: 'var(--muted)' }}>Stories from the field are on their way.</p>
+            <div
+              className="rounded-2xl border p-16 text-center"
+              style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, #18181B 0%, #111113 100%)' }}
+            >
+              <div
+                className="font-serif font-bold select-none mb-4"
+                style={{ fontSize: '4rem', lineHeight: 1, color: 'rgba(245,158,11,0.08)' }}
+              >
+                🪔
+              </div>
+              <p className="font-serif text-lg mb-1" style={{ color: 'var(--text)' }}>
+                Dispatches incoming.
+              </p>
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                Stories from the ground are being gathered.
+              </p>
+              <Link
+                href="/post/story"
+                className="inline-flex items-center gap-1.5 mt-6 text-xs font-semibold text-amber-500 hover:text-amber-400 transition-colors"
+              >
+                Browse all field updates →
+              </Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
