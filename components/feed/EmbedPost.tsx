@@ -44,15 +44,25 @@ export default function EmbedPost({ embedUrl, embedType, caption, wide = false }
   return (
     <div ref={containerRef} className="w-full overflow-hidden">
       {embedType === 'facebook' ? (
-        <div className="flex justify-center py-3 px-3 rounded-xl overflow-hidden bg-white">
-          {/* Facebook JS SDK embed — parsed by FB.XFBML.parse() above */}
-          {/* Wrapped in white bg: FB iframes are always light-themed internally */}
+        <div className="flex flex-col items-center py-3 px-3 gap-3">
+          {/* FB iframe renders with its own white bg — nothing we can do about internals */}
           <div
-            className="fb-post"
+            className="fb-post w-full"
             data-href={embedUrl}
             data-width={wide ? '750' : '400'}
             data-show-text="true"
           />
+          {/* Always-visible fallback link so content is reachable even if embed doesn't render */}
+          <a
+            href={embedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-colors hover:border-amber-500/50 hover:text-amber-500"
+            style={{ color: 'var(--muted)', borderColor: 'var(--border)' }}
+          >
+            <span>View on Facebook</span>
+            <span>↗</span>
+          </a>
         </div>
       ) : (
         <div className="flex justify-center py-2">
