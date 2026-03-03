@@ -13,7 +13,18 @@ const PROGRAMS = [
   { slug: 'limb-support', emoji: '🦾', title: 'Limb Support',    description: 'Prosthetics and mobility aids for people with disabilities.' },
 ];
 
-async function getRecentStories() {
+interface StoryDoc {
+  _id: string;
+  type: string;
+  title?: string;
+  caption?: string;
+  imageUrl?: string;
+  embedUrl?: string;
+  tags?: string[];
+  createdAt: string;
+}
+
+async function getRecentStories(): Promise<StoryDoc[]> {
   try {
     await connectDB();
     const posts = await Post.find({ isPublished: true, type: { $in: ['story', 'embed'] } })

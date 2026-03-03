@@ -105,7 +105,7 @@ After domain active: update `NEXT_PUBLIC_SITE_URL` in Vercel to `https://athousa
 | Variable | Local (.env.local) | Vercel (production) | Status |
 |----------|--------------------|---------------------|--------|
 | `MONGODB_URI` | `mongodb://mongo:27017/athousandlamps` | Atlas URI ✅ set | Live |
-| `ADMIN_SECRET_TOKEN` | `dev_secret_123` | `dev_secret_123` ⚠️ weak | Needs hardening |
+| `ADMIN_SECRET_TOKEN` | `dev_secret_123` | set in Vercel ⚠️ harden before launch | Needs strong value |
 | `CLOUDINARY_CLOUD_NAME` | placeholder | ❌ not set | Blocks photo upload |
 | `CLOUDINARY_API_KEY` | placeholder | ❌ not set | Blocks photo upload |
 | `CLOUDINARY_API_SECRET` | placeholder | ❌ not set | Blocks photo upload |
@@ -118,14 +118,14 @@ After domain active: update `NEXT_PUBLIC_SITE_URL` in Vercel to `https://athousa
 
 - **Cluster:** `cluster0.shlzrko.mongodb.net`
 - **Database:** `athousandlamps`
-- **User:** `ahmedrumman_db_user` / `a_thousand_lamp_26`
+- **User:** `ahmedrumman_db_user` — password in Vercel env / `.env.local` only (never commit)
 - **Collection:** `posts` — 14 Facebook embed documents seeded
 - **Network Access:** Must have `0.0.0.0/0` active for Vercel serverless IPs
 
-Seed against Atlas:
+Seed against Atlas (get URI from `.env.local` or Vercel dashboard):
 ```bash
-MONGODB_URI="mongodb+srv://ahmedrumman_db_user:a_thousand_lamp_26@cluster0.shlzrko.mongodb.net/athousandlamps" \
-  docker-compose exec -e MONGODB_URI="mongodb+srv://..." app npx tsx scripts/seed.ts
+MONGODB_URI="<get from .env.local>" \
+  docker-compose exec -e MONGODB_URI="$MONGODB_URI" app npx tsx scripts/seed.ts
 ```
 
 ---
