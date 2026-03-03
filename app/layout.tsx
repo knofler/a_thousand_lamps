@@ -37,8 +37,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
 
         {/* Facebook JS SDK — lazy, won't block render */}
+        {/* Replace YOUR_APP_ID with a real Facebook App ID from developers.facebook.com */}
         <Script
-          src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0"
+          src={`https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0&appId=${process.env.NEXT_PUBLIC_FACEBOOK_APP_ID ?? ''}`}
           strategy="lazyOnload"
           crossOrigin="anonymous"
         />

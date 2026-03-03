@@ -12,6 +12,7 @@ interface Props {
 declare global {
   interface Window {
     FB?: { XFBML?: { parse: (el?: HTMLElement) => void } };
+    fbAsyncInit?: () => void;
     instgrm?: { Embeds?: { process: () => void } };
   }
 }
@@ -20,12 +21,22 @@ export default function EmbedPost({ embedUrl, embedType, caption }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // After the embed markup is mounted, trigger the SDK to parse it.
-    // The SDKs are loaded globally in app/layout.tsx.
     if (embedType === 'facebook') {
-      window.FB?.XFBML?.parse(containerRef.current ?? undefined);
+      if (window.FB?.XFBML) {
+        // SDK already loaded — parse immediately
+        window.FB.XFBML.parse(containerRef.current ?? undefined);
+      } else {
+        // SDK not yet loaded — hook into fbAsyncInit so we parse once it arrives
+        const prev = window.fbAsyncInit;
+        window.fbAsyncInit = () => {
+          prev?.();
+          window.FB?.XFBML?.parse(containerRef.current ?? undefined);
+        };
+      }
     } else {
-      window.instgrm?.Embeds?.process();
+      if (window.instgrm?.Embeds) {
+        window.instgrm.Embeds.process();
+      }
     }
   }, [embedUrl, embedType]);
 
@@ -54,7 +65,7 @@ export default function EmbedPost({ embedUrl, embedType, caption }: Props) {
         </div>
       )}
       {caption && (
-        <p className="px-4 pt-2 pb-1 text-sm text-lamp-dark leading-relaxed">{caption}</p>
+        <p className="px-4 pt-2 pb-1 text-sm leading-relaxed" style={{ color: 'var(--text)' }}>{caption}</p>
       )}
     </div>
   );
