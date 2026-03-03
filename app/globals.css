@@ -63,7 +63,7 @@
   .post-card {
     background-color: var(--surface);
     border: 1px solid var(--border);
-    @apply rounded-2xl overflow-hidden mb-4 mx-auto max-w-lg w-full
+    @apply rounded-2xl overflow-hidden w-full
            hover:border-amber-500/30 transition-all duration-200;
   }
 

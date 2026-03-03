@@ -20,7 +20,7 @@ interface Post {
   createdAt: string;
 }
 
-export default function PostCard({ post }: { post: Post }) {
+export default function PostCard({ post, wide = false }: { post: Post; wide?: boolean }) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likes);
 
@@ -46,7 +46,7 @@ export default function PostCard({ post }: { post: Post }) {
         <PhotoPost imageUrl={post.imageUrl} caption={post.caption} title={post.title} />
       )}
       {post.type === 'embed' && post.embedUrl && post.embedType && (
-        <EmbedPost embedUrl={post.embedUrl} embedType={post.embedType} caption={post.caption} />
+        <EmbedPost embedUrl={post.embedUrl} embedType={post.embedType} caption={post.caption} wide={wide} />
       )}
       {(post.type === 'story' || post.type === 'program') && (
         <StoryPost title={post.title} caption={post.caption} imageUrl={post.imageUrl} tags={post.tags} />

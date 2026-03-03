@@ -6,6 +6,7 @@ interface Props {
   embedUrl: string;
   embedType: 'facebook' | 'instagram';
   caption?: string;
+  wide?: boolean;
 }
 
 // Extend window for FB and Instagram SDK globals
@@ -17,7 +18,7 @@ declare global {
   }
 }
 
-export default function EmbedPost({ embedUrl, embedType, caption }: Props) {
+export default function EmbedPost({ embedUrl, embedType, caption, wide = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export default function EmbedPost({ embedUrl, embedType, caption }: Props) {
           <div
             className="fb-post"
             data-href={embedUrl}
-            data-width="500"
+            data-width={wide ? '750' : '400'}
             data-show-text="true"
           />
         </div>

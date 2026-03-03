@@ -57,16 +57,24 @@ export default function FeedContainer({ initialPosts }: { initialPosts: Post[] }
   useEffect(() => { if (inView) loadMore(); }, [inView, loadMore]);
 
   return (
-    <section className="px-4 pb-20">
-      <div className="flex flex-col items-center">
-        {posts.map((post) => <PostCard key={post._id} post={post} />)}
-      </div>
+    <section className="px-4 pb-20 max-w-6xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {posts.map((post, i) => (
+          <div
+            key={post._id}
+            className={
+              // Every 4th card (index 3, 7, 11 …) spans all 3 columns
+              (i + 1) % 4 === 0 ? 'md:col-span-3' : ''
+            }
+          >
+            <PostCard post={post} wide={(i + 1) % 4 === 0} />
+          </div>
+        ))}
 
-      {loading && (
-        <div className="flex flex-col items-center">
-          {[1, 2].map((i) => <SkeletonCard key={i} />)}
-        </div>
-      )}
+        {loading && [1, 2, 3].map((i) => (
+          <div key={i}><SkeletonCard /></div>
+        ))}
+      </div>
 
       {hasMore && <div ref={sentinelRef} className="h-10" />}
 
