@@ -72,7 +72,7 @@ export default function FeedContainer({ initialPosts }: { initialPosts: Post[] }
 
       {!hasMore && posts.length > 0 && (
         <p className="text-center text-sm py-10" style={{ color: 'var(--muted)' }}>
-          🪔 You've seen all the light. Thank you for being here.
+          🪔 You&apos;ve seen all the light. Thank you for being here.
         </p>
       )}
     </section>

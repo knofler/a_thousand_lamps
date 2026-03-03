@@ -29,7 +29,7 @@ export default function HeroSection() {
         </p>
 
         <p className="text-sm mb-10 italic" style={{ color: 'var(--muted)', opacity: 0.6 }}>
-          Every lamp you light changes someone's darkness forever.
+          Every lamp you light changes someone&apos;s darkness forever.
         </p>
 
         <CelebrateButton size="lg" />
