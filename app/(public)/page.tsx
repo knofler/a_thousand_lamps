@@ -4,7 +4,7 @@ import Post from '@/lib/models/Post';
 import HeroSection from '@/components/sections/HeroSection';
 import ProgramCard from '@/components/sections/ProgramCard';
 import TransparencySection from '@/components/sections/TransparencySection';
-import { relativeTime } from '@/lib/utils';
+import HomeTeaserEmbed from '@/components/feed/HomeTeaserEmbed';
 
 const PROGRAMS = [
   { slug: 'ramadan',      emoji: '🌙', title: 'Ramadan Meals',   description: 'Hot iftar and sehri meals for families who go without.' },
@@ -80,8 +80,8 @@ export default async function HomePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {stories.map((story: { _id: string; title?: string; caption?: string; imageUrl?: string; embedUrl?: string; createdAt: string }) => (
-                <StoryTeaser key={story._id} story={story} />
+              {stories.map((story) => (
+                <HomeTeaserEmbed key={story._id} story={story} />
               ))}
             </div>
           )}
@@ -100,54 +100,3 @@ export default async function HomePage() {
   );
 }
 
-function StoryTeaser({ story }: {
-  story: { _id: string; title?: string; caption?: string; imageUrl?: string; embedUrl?: string; createdAt: string }
-}) {
-  return (
-    <article
-      className="group relative rounded-2xl overflow-hidden min-h-64 flex flex-col justify-end"
-      style={{
-        background: story.imageUrl
-          ? `linear-gradient(to top, rgba(9,9,11,0.95) 0%, rgba(9,9,11,0.3) 70%), url(${story.imageUrl}) center/cover`
-          : 'linear-gradient(135deg, #18181B 0%, #111113 100%)',
-        border: '1px solid var(--border)',
-      }}
-    >
-      <div className="absolute top-0 left-0 bottom-0 w-[3px] bg-amber-500/20 group-hover:bg-amber-500 transition-colors duration-300" />
-
-      <div className="relative p-5">
-        {story.title && (
-          <h3 className="font-serif text-lg font-bold text-white leading-snug mb-1.5">
-            {story.title}
-          </h3>
-        )}
-        {story.caption && (
-          <p className="text-xs leading-relaxed mb-3" style={{
-            color: 'rgba(255,255,255,0.55)',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical' as const,
-            overflow: 'hidden',
-          }}>
-            {story.caption}
-          </p>
-        )}
-        <div className="flex items-center justify-between">
-          <span className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
-            {relativeTime(story.createdAt)}
-          </span>
-          {story.embedUrl && (
-            <a
-              href={story.embedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-semibold text-amber-500 hover:text-amber-400 transition-colors"
-            >
-              View ↗
-            </a>
-          )}
-        </div>
-      </div>
-    </article>
-  );
-}
