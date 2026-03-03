@@ -2,7 +2,35 @@
 
 **Saved:** 2026-03-03
 **Source:** User-provided project brief
-**Status:** In progress — build kicked off same session
+**Status:** Phase 1 complete — app live on Vercel, Atlas seeded. Phase 2 (Cloudinary, FB App ID, domain) in progress.
+
+## Progress Tracker (updated Session 003)
+
+| Step | Task | Status |
+|------|------|--------|
+| 1 | Scaffold + Git init | ✅ |
+| 2 | Install deps (Docker) | ✅ |
+| 3 | `.env` files | ✅ |
+| 4 | `lib/` layer (mongodb, models, auth, utils) | ✅ |
+| 5 | All API routes | ✅ |
+| 6 | Design system (dark/light, amber, CSS vars) | ✅ |
+| 7 | UI components (NavBar, Footer, ThemeToggle, etc.) | ✅ |
+| 8 | Feed components (FeedContainer, PostCard, EmbedPost) | ✅ |
+| 9 | Section components | ✅ |
+| 10 | Public pages | ✅ |
+| 11 | Admin pages | ✅ |
+| 12 | Docker dev running (localhost:3300) | ✅ |
+| 13 | Seed local DB (14 FB posts) | ✅ |
+| 14 | GitHub repo pushed | ✅ |
+| 15 | Vercel deployment (build passing) | ✅ |
+| 16 | MongoDB Atlas connected + seeded | ✅ (IP whitelist pending verification) |
+| 17 | Facebook embeds loading on Vercel | ⚠️ Needs FB App ID env var |
+| 18 | Cloudinary image upload | ❌ Needs credentials in Vercel |
+| 19 | Custom domain (athousandlamps.org) | ❌ Not started |
+| 20 | Harden admin token | ❌ Still dev_secret_123 |
+| 21 | CI/CD GitHub Actions secrets | ❌ Not configured |
+| 22 | PostEditor component | ❌ Not built |
+| 23 | Like counter persisted to DB | ❌ Client-only currently |
 
 ---
 

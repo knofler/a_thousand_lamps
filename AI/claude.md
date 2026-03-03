@@ -49,3 +49,25 @@
 **Key decision:** User confirmed no local npm — all runs via Docker. `npm install` happens inside container.
 
 **Outcome:** All source files written. Ready for `docker-compose up --build`. See STATE.md for known issues and next steps.
+
+---
+
+### 2026-03-03 — Session 003
+
+**Task:** Fix runtime errors, deploy to Vercel, seed Atlas, save state and prepare handoff.
+
+**Actions taken:**
+1. Fixed `Footer.tsx` — Server Component with `onMouseEnter`/`onMouseLeave` (illegal). Replaced with `.link-muted` CSS utility. Same applied to `NavBar.tsx`.
+2. Fixed ESLint `react/no-unescaped-entities` — `'` → `&apos;` in `FeedContainer.tsx` and `HeroSection.tsx`.
+3. Fixed `lib/mongodb.ts` — moved `MONGODB_URI` guard inside `connectDB()` (module-level throw crashed Next.js build-time page data collection).
+4. Fixed `EmbedPost.tsx` — added `fbAsyncInit` fallback for SDK/React race condition. Fixed stale `text-lamp-dark` class.
+5. Changed docker-compose.yml local MongoDB host port: `27017` → `27090`.
+6. Linked project to Vercel: `vercel link --yes --project a-thousand-lamps`.
+7. Set Vercel env vars: `MONGODB_URI` (Atlas), `ADMIN_SECRET_TOKEN`.
+8. Deployed to Vercel — build passing, app live.
+9. Diagnosed Vercel 500: Atlas IP whitelist blocking serverless IPs. Instructed user to add `0.0.0.0/0`.
+10. Seeded Atlas: 14 Facebook posts via Docker exec with Atlas URI override.
+11. Added `NEXT_PUBLIC_FACEBOOK_APP_ID` support to SDK URL in `app/layout.tsx`.
+12. Fully updated: `AI/STATE.md`, `AI/AI_AGENT_HANDOFF.md`, `AI/plan/20260303_full_build_plan.md`, `AI/claude.md`, `memory/MEMORY.md`.
+
+**Outcome:** App live at https://a-thousand-lamps.vercel.app. Atlas seeded. Blocking: Atlas IP whitelist verification, FB App ID, Cloudinary. See STATE.md section 5 for ordered next steps.

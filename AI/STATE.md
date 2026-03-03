@@ -1,90 +1,125 @@
 # Project State: A Thousand Lamps
 
-**Timestamp:** 2026-03-03 — Session 002
-**Current Agent:** Claude
+**Timestamp:** 2026-03-03 — Session 003
+**Current Agent:** Claude (Sonnet 4.6)
 
 ---
 
-## 1. Recently Implemented
-
-Full application scaffold built from the user-provided build plan. All source files created — ready for `docker-compose up --build`.
+## 1. What Has Been Built (Complete)
 
 ### Infrastructure
-- `package.json` (name: `a-thousand-lamps`, all deps listed)
-- `tsconfig.json`, `next.config.ts` (output: standalone for Docker)
-- `tailwind.config.ts` (lamp color palette: gold, green, cream, dark)
-- `postcss.config.mjs`, `.eslintrc.json`
-- `Dockerfile` (3-stage: deps → builder → runner, node:20-alpine)
-- `docker-compose.yml` (dev: app + mongo with healthcheck, volume mounts for hot reload)
-- `docker-compose.prod.yml` (uses pre-built image + .env.production, no mongo — Atlas used)
-- `vercel.json` (region: sin1)
-- `.env.example`, `.env.local` (local dev values)
-- `scripts/seed.ts` (seeds 14 Facebook posts, idempotent)
-- `AI/plan/20260303_full_build_plan.md` (full build plan saved)
+- `Dockerfile` — 3-stage multi-stage build (deps → builder → runner, node:20-alpine, standalone output)
+- `docker-compose.yml` — dev: `atl_app` (3300:3000) + `atl_mongo` (27090:27017), volume mounts for hot reload
+- `docker-compose.prod.yml` — production image + .env.production (no local mongo)
+- `next.config.mjs` — `output: 'standalone'`, Cloudinary + fbcdn image domains
+- `vercel.json` — region: sin1, build/dev commands
+- `.env.example` — all env vars documented (including `NEXT_PUBLIC_FACEBOOK_APP_ID`)
+- `.env.local` — local dev values (never committed)
+- `scripts/seed.ts` — seeds 14 Facebook posts, idempotent
 
 ### Data Layer
-- `lib/mongodb.ts` — singleton Mongoose connection with global cache
-- `lib/models/Post.ts` — full schema with index on `isPublished + order + createdAt`
-- `lib/models/Program.ts` — program model
-- `lib/auth.ts` — Bearer token admin auth helper
-- `lib/utils.ts` — relativeTime, detectEmbedType, tagColor
+- `lib/mongodb.ts` — singleton Mongoose connection, global cache for HMR, check inside `connectDB()` (not module-level — fixes Vercel build crash)
+- `lib/models/Post.ts` — full schema, compound index on `isPublished + order + createdAt`
+- `lib/models/Program.ts`
+- `lib/auth.ts` — Bearer token admin auth
+- `lib/utils.ts` — `relativeTime`, `detectEmbedType`, `tagColor`
 
-### API Routes
-- `app/api/posts/route.ts` — GET (paginated, filterable) + POST (admin)
-- `app/api/posts/[id]/route.ts` — GET, PUT, DELETE (admin)
-- `app/api/embeds/route.ts` — POST (auto-detects fb/instagram, admin)
-- `app/api/upload/route.ts` — POST multipart → Cloudinary (admin)
-- `app/api/auth/route.ts` — POST token validation
+### API Routes (all working locally)
+- `GET/POST /api/posts` — paginated (page, limit, type, tag filters)
+- `GET/PUT/DELETE /api/posts/[id]`
+- `POST /api/embeds` — auto-detects facebook/instagram
+- `POST /api/upload` — multipart → Cloudinary
+- `POST /api/auth` — token validation
+
+### Design System
+- Dark theme default, light toggle via CSS custom properties (`--bg`, `--surface`, `--border`, `--text`, `--muted`, `--accent`)
+- Amber (#F59E0B dark / #D97706 light) as accent — warm, not culturally specific
+- `components/ui/ThemeToggle.tsx` — localStorage-backed, no-flash inline script in layout
+- `.link-muted` CSS utility in globals.css — hover color change without JS (Server Component safe)
 
 ### Components
-- `components/ui/` — NavBar, Footer, CelebrateButton, DonationModal
-- `components/feed/` — FeedContainer (Intersection Observer infinite scroll), PostCard, PhotoPost, EmbedPost (FB + IG SDK), StoryPost
+- `components/ui/` — NavBar (ThemeToggle, hamburger), Footer, CelebrateButton, DonationModal
+- `components/feed/` — FeedContainer (Intersection Observer infinite scroll), PostCard, PhotoPost, EmbedPost, StoryPost
 - `components/sections/` — HeroSection, ProgramCard, ComicStory, TransparencySection
 - `components/admin/` — AdminNav, EmbedForm, ImageUploader
 
 ### Pages
-- `app/(public)/layout.tsx` — NavBar + Footer wrapper
-- `app/(public)/page.tsx` — Home: Hero → Programs strip → Feed → ComicStory → Transparency
-- `app/(public)/about/page.tsx`
-- `app/(public)/programs/page.tsx`
-- `app/(public)/celebrate/page.tsx` — Donation tiers + payment methods
-- `app/(public)/story/page.tsx`
-- `app/(public)/transparency/page.tsx`
-- `app/(admin)/layout.tsx` — AdminNav sidebar
-- `app/(admin)/admin/page.tsx` — Login + Dashboard
-- `app/(admin)/admin/upload/page.tsx`
-- `app/(admin)/admin/embeds/page.tsx`
-- `app/(admin)/admin/posts/page.tsx` — Publish toggle + delete
+- All public pages: `/`, `/about`, `/programs`, `/celebrate`, `/story`, `/transparency`
+- All admin pages: `/admin` (login + dashboard), `/admin/upload`, `/admin/embeds`, `/admin/posts`
+
+### Deployment
+- **GitHub:** `git@github.com:knofler/a_thousand_lamps.git` — branch `main`, 4 commits pushed
+- **Vercel:** Project `a-thousand-lamps` under `knoflers-projects`
+  - URL: `https://a-thousand-lamps.vercel.app`
+  - Env vars set: `MONGODB_URI`, `ADMIN_SECRET_TOKEN`
+- **MongoDB Atlas:** Cluster `cluster0.shlzrko.mongodb.net`, DB `athousandlamps`
+  - User: `ahmedrumman_db_user`
+  - 14 Facebook posts seeded via Atlas URI
 
 ---
 
 ## 2. Architectural Decisions
 
-- **Monolithic Next.js** — API routes live in the same app as the frontend. No separate API service (plan section 5 confirmed this). Simplifies Docker to a single container + MongoDB.
-- **No local npm** — user confirmed all dev runs via Docker. `npm install` happens inside the container at build time.
-- **Admin auth** — sessionStorage token, sent as `Authorization: Bearer`. No NextAuth for MVP.
-- **FB/IG embeds** — SDKs loaded globally in `app/layout.tsx`. `EmbedPost` calls `window.FB?.XFBML?.parse()` and `window.instgrm?.Embeds?.process()` after mount.
-- **Infinite scroll** — `react-intersection-observer` sentinel pattern in `FeedContainer`.
-- **Standalone Next.js output** — required for Docker multi-stage `server.js` runner.
+- **Monolithic Next.js** — API routes in same app as frontend, single container + MongoDB
+- **No local npm** — CRITICAL: all dev runs via `docker-compose up --build`. Never run npm locally
+- **Admin auth** — sessionStorage token, `Authorization: Bearer`. No NextAuth for MVP
+- **FB/IG embeds** — SDKs loaded globally in `app/layout.tsx` via `next/script strategy="lazyOnload"`. `EmbedPost` uses `fbAsyncInit` fallback to handle race condition between React hydration and SDK load
+- **Infinite scroll** — `react-intersection-observer` sentinel pattern in `FeedContainer`
+- **Standalone Next.js output** — required for Docker multi-stage `server.js` runner
 
 ---
 
-## 3. Blockers / Bugs
+## 3. Current Blockers
 
-- **Docker build not yet run** — all files written; first `docker-compose up --build` may surface TypeScript or missing dependency issues.
-- **GitHub remote not set** — no remote, no CI triggered yet.
-- **Cloudinary not configured** — `.env.local` has placeholder values; image upload won't work until real keys are set.
-- **MongoDB Atlas not set up** — production env var needs real Atlas URI for Vercel deploy.
-- **`app/layout.tsx` script tags** — React server components don't support `<script>` directly in `<head>` in all Next.js 14 versions; may need to move to `next/script` with `strategy="lazyOnload"`.
+### CRITICAL — Vercel: Facebook embeds not loading
+- **Root cause A (confirmed):** Atlas IP whitelist was blocking Vercel. User added `0.0.0.0/0` in Atlas Network Access. **Needs verification** — API was still returning 500 at end of session.
+- **Root cause B (pending):** Facebook SDK requires a valid `NEXT_PUBLIC_FACEBOOK_APP_ID` env var. Without it `fb-post` embeds render as blank boxes in some configurations. Code is ready — just needs the App ID set in Vercel.
+  - Steps: developers.facebook.com → Create App (Consumer) → Settings > Basic → copy App ID → `vercel env add NEXT_PUBLIC_FACEBOOK_APP_ID production` → `vercel --prod`
+
+### Atlas Connection — Verify after handoff
+```bash
+curl https://a-thousand-lamps.vercel.app/api/posts?limit=1
+# Should return {"posts":[...],"pagination":{...}}
+# If still {"error":"Internal server error"} → Atlas whitelist not active yet
+```
+
+### Cloudinary — Not configured
+- Image uploads will return 500 until Cloudinary keys are added
+- `.env.local` has placeholders; Vercel has no Cloudinary env vars set
+- Add to Vercel: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+
+### Admin token — Weak
+- `ADMIN_SECRET_TOKEN=dev_secret_123` in production. Should be changed before public launch
 
 ---
 
-## 4. Immediate Next Steps
+## 4. Plan Progress
 
-- [ ] Run `docker-compose up --build` and fix any build-time TypeScript/import errors.
-- [ ] Fix FB/IG SDK script loading — replace raw `<script>` with `next/script` in `layout.tsx`.
-- [ ] Seed the database: `docker-compose exec app npx tsx scripts/seed.ts`
-- [ ] Add Cloudinary credentials to `.env.local` and test image upload.
-- [ ] Create GitHub repo, push, set secrets for CI.
-- [ ] Create MongoDB Atlas cluster and update MONGODB_URI for production.
-- [ ] Connect repo to Vercel and deploy.
+| # | Task | Status |
+|---|------|--------|
+| 1 | Project scaffold + Git init | ✅ Done |
+| 2 | Full Next.js app build | ✅ Done |
+| 3 | Docker dev environment running | ✅ Done |
+| 4 | Dark/light theme system | ✅ Done |
+| 5 | GitHub repo pushed | ✅ Done |
+| 6 | Vercel deployment (build passing) | ✅ Done |
+| 7 | MongoDB Atlas connected | ✅ Done (IP whitelist issue pending verification) |
+| 8 | Atlas seeded with 14 posts | ✅ Done |
+| 9 | Facebook embeds loading on Vercel | ⚠️ Blocked (see above) |
+| 10 | Cloudinary image upload working | ❌ Not started |
+| 11 | Facebook App ID configured | ❌ Not started |
+| 12 | Custom domain (athousandlamps.org) | ❌ Not started |
+| 13 | CI/CD GitHub Actions pipeline | ❌ Not configured (secrets missing) |
+| 14 | ADMIN_SECRET_TOKEN hardened | ❌ Still dev_secret_123 |
+| 15 | PostEditor component | ❌ Not built (planned in section 2) |
+
+---
+
+## 5. Immediate Next Steps (in order)
+
+1. **Verify Atlas whitelist** — `curl https://a-thousand-lamps.vercel.app/api/posts?limit=1`
+2. **Facebook App ID** — get from developers.facebook.com, set in Vercel, redeploy
+3. **Cloudinary** — get credentials, set in both `.env.local` and Vercel, test photo upload
+4. **Harden admin token** — `vercel env rm ADMIN_SECRET_TOKEN production` → set strong value
+5. **Custom domain** — set in Vercel dashboard → add DNS records
+6. **CI/CD** — set GitHub secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
