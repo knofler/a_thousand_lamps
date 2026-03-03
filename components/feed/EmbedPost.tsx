@@ -44,8 +44,9 @@ export default function EmbedPost({ embedUrl, embedType, caption, wide = false }
   return (
     <div ref={containerRef} className="w-full overflow-hidden">
       {embedType === 'facebook' ? (
-        <div className="flex justify-center py-2">
+        <div className="flex justify-center py-3 px-3 rounded-xl overflow-hidden bg-white">
           {/* Facebook JS SDK embed — parsed by FB.XFBML.parse() above */}
+          {/* Wrapped in white bg: FB iframes are always light-themed internally */}
           <div
             className="fb-post"
             data-href={embedUrl}
