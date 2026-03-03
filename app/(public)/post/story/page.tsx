@@ -1,9 +1,11 @@
 import { connectDB } from '@/lib/mongodb';
 import Post from '@/lib/models/Post';
 import { relativeTime } from '@/lib/utils';
+import DispatchEmbed from '@/components/feed/DispatchEmbed';
 
 interface StoryPost {
   _id: string;
+  type: 'story' | 'embed';
   title?: string;
   caption?: string;
   imageUrl?: string;
@@ -113,6 +115,11 @@ export default async function StoriesPage() {
 
 /* ── Featured story ─────────────────────────────────────── */
 function FeaturedStory({ story, index }: { story: StoryPost; index: number }) {
+  // Embed-type posts: render the actual FB embed, not the editorial card
+  if (story.type === 'embed' && story.embedUrl) {
+    return <DispatchEmbed embedUrl={story.embedUrl} tags={story.tags} createdAt={story.createdAt} index={index} wide />;
+  }
+
   const num = String(index + 1).padStart(2, '0');
   return (
     <article
@@ -187,6 +194,11 @@ function FeaturedStory({ story, index }: { story: StoryPost; index: number }) {
 
 /* ── Story card (grid) ──────────────────────────────────── */
 function StoryCard({ story, index }: { story: StoryPost; index: number }) {
+  // Embed-type posts: render the actual FB embed
+  if (story.type === 'embed' && story.embedUrl) {
+    return <DispatchEmbed embedUrl={story.embedUrl} tags={story.tags} createdAt={story.createdAt} index={index} />;
+  }
+
   const num = String(index + 1).padStart(2, '0');
   return (
     <article
