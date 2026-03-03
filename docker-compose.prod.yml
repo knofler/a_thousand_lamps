@@ -1,0 +1,16 @@
+version: '3.8'
+
+# ─── A Thousand Lamps — Production ───────────────────────────────────────────
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+# Requires a built image: docker build -t athousandlamps:latest .
+# MongoDB Atlas is used in production — no mongo service here.
+
+services:
+  app:
+    image: athousandlamps:latest
+    container_name: atl_app_prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.production

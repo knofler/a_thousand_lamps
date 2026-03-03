@@ -1,0 +1,49 @@
+# ─── A Thousand Lamps — Local Development ────────────────────────────────────
+# Usage: docker-compose up --build
+# The app/ source is volume-mounted so edits hot-reload without rebuilding.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: deps          # Stop at deps stage for dev; builder/runner used in prod
+    image: athousandlamps:dev
+    container_name: atl_app
+    restart: unless-stopped
+    command: npm run dev    # Override CMD to run dev server
+    ports:
+      - "3300:3000"
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=mongodb://mongo:27017/athousandlamps
+      - ADMIN_SECRET_TOKEN=${ADMIN_SECRET_TOKEN:-dev_secret_123}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - NEXT_PUBLIC_SITE_URL=http://localhost:3000
+      - NEXT_PUBLIC_APP_NAME=A Thousand Lamps
+    volumes:
+      - .:/app
+      - /app/node_modules   # Preserve container's node_modules
+      - /app/.next          # Preserve Next.js build cache
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  mongo:
+    image: mongo:7
+    container_name: atl_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongo_data:
