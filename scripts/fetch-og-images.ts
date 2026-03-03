@@ -9,9 +9,9 @@
 import { connectDB } from '../lib/mongodb';
 import Post from '../lib/models/Post';
 
+// facebookexternalhit UA causes FB to return real scontent CDN image URLs
 const HEADERS = {
-  'User-Agent':
-    'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+  'User-Agent': 'facebookexternalhit/1.1',
   Accept: 'text/html,application/xhtml+xml',
 };
 
@@ -19,6 +19,10 @@ async function getOgImage(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, { headers: HEADERS });
     const html = await res.text();
+    // Extract first scontent CDN URL from the HTML (real renderable images)
+    const scontent = html.match(/https:\/\/scontent[^"&\s]*/);
+    if (scontent) return scontent[0].replace(/\\u0025/g, '%');
+    // Fallback: try og:image meta tag
     const match =
       html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/) ||
       html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/);
@@ -37,7 +41,6 @@ async function run() {
     type: 'embed',
     embedType: 'facebook',
     isPublished: true,
-    $or: [{ imageUrl: { $exists: false } }, { imageUrl: null }, { imageUrl: '' }],
   })
     .select('_id embedUrl')
     .lean();
