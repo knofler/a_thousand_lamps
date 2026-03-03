@@ -27,8 +27,9 @@ interface StoryDoc {
 async function getRecentStories(): Promise<StoryDoc[]> {
   try {
     await connectDB();
+    // Prefer posts with an image — sort imageUrl descending puts set-fields first
     const posts = await Post.find({ isPublished: true, type: { $in: ['story', 'embed'] } })
-      .sort({ createdAt: -1 })
+      .sort({ imageUrl: -1, createdAt: -1 })
       .limit(3)
       .lean();
     return JSON.parse(JSON.stringify(posts));
@@ -91,8 +92,8 @@ export default async function HomePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {stories.map((story) => (
-                <HomeTeaserEmbed key={story._id} story={story} />
+              {stories.map((story, i) => (
+                <HomeTeaserEmbed key={story._id} story={story} index={i} />
               ))}
             </div>
           )}
