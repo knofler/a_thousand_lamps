@@ -15,8 +15,9 @@ interface StoryPost {
 async function getStories(): Promise<StoryPost[]> {
   try {
     await connectDB();
-    const posts = await Post.find({ isPublished: true, type: 'story' })
-      .sort({ createdAt: -1 })
+    // Include both hand-written stories (type:'story') and Facebook embed posts (type:'embed')
+    const posts = await Post.find({ isPublished: true, type: { $in: ['story', 'embed'] } })
+      .sort({ order: 1, createdAt: -1 })
       .lean();
     return JSON.parse(JSON.stringify(posts));
   } catch {

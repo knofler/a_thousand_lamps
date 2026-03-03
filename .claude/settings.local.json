@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init:*)",
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose stop:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(docker-compose exec:*)",
+      "Bash(curl:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git:*)",
+      "Bash(vercel whoami:*)",
+      "Bash(vercel link:*)",
+      "Bash(vercel:*)",
+      "Bash(MONGODB_URI=\"mongodb+srv://ahmedrumman_db_user:a_thousand_lamp_26@cluster0.shlzrko.mongodb.net/athousandlamps\" docker-compose exec:*)",
+      "Bash(docker-compose down:*)"
+    ]
+  }
+}

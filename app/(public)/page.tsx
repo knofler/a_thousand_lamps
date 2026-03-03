@@ -16,7 +16,7 @@ const PROGRAMS = [
 async function getRecentStories() {
   try {
     await connectDB();
-    const posts = await Post.find({ isPublished: true, type: 'story' })
+    const posts = await Post.find({ isPublished: true, type: { $in: ['story', 'embed'] } })
       .sort({ createdAt: -1 })
       .limit(3)
       .lean();
