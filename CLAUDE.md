@@ -15,7 +15,7 @@
 
 ## Specialist Subagents Available
 
-Claude Code auto-discovers these from `.claude/agents/`:
+Claude Code auto-discovers these from `AI/.claude/agents/`:
 
 | Agent | Trigger Keywords |
 |-------|-----------------|
