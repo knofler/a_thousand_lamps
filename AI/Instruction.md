@@ -35,3 +35,67 @@ When the user explicitly asks to "prepare for handoff" or switch agents:
 - **copilot.md**: Log for Copilot's actions.
 - **gemini.md**: Log for Gemini's actions (you).
 - **global_ai_management_prompt.md**: The master instruction set for initializing this folder structure.
+
+---
+
+## Parallel Execution Workflow
+
+### Overview
+This framework supports 13 specialist agents running in defined parallel lanes. Sequential work is the exception, not the rule.
+
+### Session Start Protocol
+1. Read `AI/STATE.md` + `AI/AI_AGENT_HANDOFF.md` (synchronize state)
+2. Read `AI/documentation/MULTI_AGENT_ROUTING.md` (routing reference)
+3. Assess what lanes can run in parallel for the current task
+4. Dispatch specialists — start Lane C (infra) and Lane D (async) immediately for any new project
+
+### Parallel Lane Reference
+```
+Lane A (Frontend):  frontend-specialist + ui-ux-specialist
+Lane B (Backend):   api-specialist + database-specialist
+Lane C (Infra):     devops-specialist + security-specialist  ← always start here
+Lane D (Async):     documentation-specialist + solution-architect + product-manager + tech-ba + project-manager
+Cross-Lane:         tech-lead (reviews) + qa-specialist (tests)
+```
+
+### Dispatch Decision
+- **2+ lanes with no shared file dependencies** → dispatch in parallel
+- **Specialist A's output required by Specialist B** → sequence them
+- **Any new project** → Lane C and Lane D always start immediately, in parallel
+
+### Example: New Full-Stack App
+```
+Round 1 (Immediate, all parallel):
+  devops-specialist    → Docker + docker-compose + .env.example + GitHub Actions
+  security-specialist  → Auth strategy ADR + secrets review
+  ui-ux-specialist     → Design tokens in tailwind.config.js
+  documentation-specialist → README skeleton
+  product-manager      → Feature spec for first milestone
+  project-manager      → PROJECT_PLAN.md + STATE.md
+  solution-architect   → Architecture ADR
+
+Round 2 (After schemas defined):
+  database-specialist  → MongoDB schemas
+  api-specialist       → API endpoint contracts (not yet implemented)
+
+Round 3 (After API contracts exist):
+  frontend-specialist  → Pages + components + data fetching
+  api-specialist       → Implement endpoints (using defined contracts)
+  qa-specialist        → Unit + integration tests (parallel to Round 3)
+
+Ongoing (cross-lane):
+  tech-lead            → Code reviews as each specialist completes work
+  security-specialist  → Security audit of completed implementations
+```
+
+### For Non-Claude AI Tools (Gemini, Copilot)
+Manually adopt specialist roles using prompts in `AI/agents/`:
+```
+"Adopt the role defined in AI/agents/api-specialist.md for this session."
+```
+See `AI/agents/README.md` for tool-specific instructions.
+
+### Agent Definitions
+- **Claude Code:** `AI/.claude/agents/` — auto-discovered subagents
+- **All tools:** `AI/agents/` — plain-text role prompts
+- **Routing:** `AI/documentation/MULTI_AGENT_ROUTING.md`

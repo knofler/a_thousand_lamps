@@ -24,7 +24,58 @@ You are part of a multi-agent team (Gemini, Claude, Copilot). You do not share i
 * **On Handoff:** When instructed to "prepare for handoff," ensure `AI/STATE.md` is fully up-to-date and generate specific instructions for the next agent in `AI/AI_AGENT_HANDOFF.md`.
 
 ## 4. Code Quality & Formatting
-* Write modular, DRY (Don't Repeat Yourself) code. 
+* Write modular, DRY (Don't Repeat Yourself) code.
 * Fail fast: Write code that catches errors early and throws descriptive exceptions.
 * Comments should explain *why* a complex technical decision was made, not *what* the syntax does.
 * Do not output lazy, truncated code (e.g., `// ... rest of code here`). Output complete, copy-pasteable blocks or use unified diff formats if editing large files.
+
+## 5. Multi-Agent Parallel Protocol
+
+### Specialist Roster
+This framework provides 13 specialist agents. Each owns a specific domain and file set:
+
+| Agent | Domain | Parallel Lane |
+|-------|--------|---------------|
+| `solution-architect` | ADRs, system design, tech choices | Lane D (Async) |
+| `frontend-specialist` | Next.js, React, Vercel | Lane A |
+| `api-specialist` | Node.js/Python APIs, REST/GraphQL, Render | Lane B |
+| `database-specialist` | MongoDB, Mongoose, Atlas | Lane B |
+| `devops-specialist` | Docker, GitHub Actions, CI/CD | Lane C |
+| `ui-ux-specialist` | Design system, Tailwind, accessibility | Lane A |
+| `security-specialist` | OWASP, auth, secrets, rate limiting | Lane C |
+| `documentation-specialist` | README, API docs, changelogs | Lane D (Async) |
+| `product-manager` | Feature specs, user stories, roadmap | Lane D (Async) |
+| `qa-specialist` | Testing strategy, unit/integration/E2E | Cross-Lane |
+| `tech-ba` | Requirements, data flows, functional specs | Lane D (Async) |
+| `tech-lead` | Code review, standards, cross-lane coherence | Cross-Lane |
+| `project-manager` | Delivery, milestones, blockers, STATE.md | Lane D (Async) |
+
+### Parallel Dispatch Rules
+* **Lane A** (Frontend): `frontend-specialist` + `ui-ux-specialist` — owns `src/app/`, `src/components/`, `styles/`
+* **Lane B** (Backend): `api-specialist` + `database-specialist` — owns `src/routes/`, `src/models/`, `src/services/`
+* **Lane C** (Infrastructure): `devops-specialist` + `security-specialist` — owns `docker-compose.yml`, `.github/`, `.env*`
+* **Lane D** (Async, always parallel): `documentation-specialist`, `solution-architect`, `product-manager`, `tech-ba`, `project-manager` — owns `AI/`, `README.md`, `docs/`
+* **Cross-Lane**: `tech-lead` (reviews all lanes), `qa-specialist` (parallel to B, reviews A)
+
+### Sequential Triggers
+When Specialist A's output is required by Specialist B, sequence their work:
+1. `database-specialist` schema → then `api-specialist` services
+2. `api-specialist` API contracts → then `frontend-specialist` fetch logic
+3. `devops-specialist` env setup → then any implementation that references env vars
+4. `solution-architect` ADR → then implementation of that architectural decision
+
+### No Shared State Between Parallel Agents
+Each specialist owns a file domain. Two specialists must not write to the same files simultaneously. Overlap = sequential. No overlap = parallel.
+
+### Troubleshooting Routing
+Route to the domain specialist, not a generic agent:
+* Frontend bug → `frontend-specialist`
+* API error → `api-specialist`
+* Database query issue → `database-specialist`
+* Security vulnerability → `security-specialist`
+* Cross-cutting concern → `solution-architect`
+
+### Agent Definitions Location
+* **Claude Code:** `AI/.claude/agents/` (auto-discovered by Claude Code after `init_ai.sh`)
+* **Gemini / Copilot / Other:** `AI/agents/` (adopt roles manually using prompts in those files)
+* **Routing reference:** `AI/documentation/MULTI_AGENT_ROUTING.md`
