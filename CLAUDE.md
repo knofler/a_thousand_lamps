@@ -113,6 +113,25 @@ See `AI/skills/README.md` for the full catalog.
 
 ---
 
+## Quick Keywords
+
+The user may type these short phrases instead of full prompts. Execute the full workflow described:
+
+| Keyword | Action |
+|---------|--------|
+| `start work` | Read `AI/state/STATE.md` + `AI/state/AI_AGENT_HANDOFF.md`. Assess status. Report what's done, in-progress, blocked. Identify next priority. |
+| `agent mode` | **Full multi-agent activation.** 1. Read `AI/state/STATE.md` + `AI/state/AI_AGENT_HANDOFF.md` + `AI/documentation/AI_RULES.md` + `AI/documentation/MULTI_AGENT_ROUTING.md`. 2. Report: completed, in-progress/blocked, next priority. 3. Dispatch all relevant lanes in parallel — Lane A (frontend-specialist + ui-ux-specialist), Lane B (api-specialist + database-specialist), Lane C (devops-specialist + security-specialist), Lane D (documentation-specialist + solution-architect + project-manager), Cross-lane (tech-lead + qa-specialist). Only sequence when one specialist's output is required input for another. 4. After every completed task, auto-update `AI/state/STATE.md` and log to `AI/logs/claude_log.md`. |
+| `ship it` | 1. Commit all changes with descriptive message. 2. Push to remote. 3. Update `AI/state/STATE.md` with progress. 4. Update `AI/state/AI_AGENT_HANDOFF.md` with context for next session. 5. Log to `AI/logs/claude_log.md`. **Do NOT run update_all — this is a project, not the master repo.** |
+| `wrap up` | Update `AI/state/STATE.md` with progress. Write `AI/state/AI_AGENT_HANDOFF.md` for next session. Log to `AI/logs/claude_log.md`. No commit. |
+| `status` | Read `AI/state/STATE.md` and give a quick summary: done, in-progress, blocked, next priority. |
+| `review` | Dispatch `tech-lead` for code review + `qa-specialist` for test coverage check on recent changes. |
+| `plan [feature]` | Dispatch `solution-architect` + `product-manager` + `tech-ba` to break down a feature into specs, stories, and ADR before code. |
+| `scaffold [thing]` | Generate boilerplate via relevant specialists: `scaffold api`, `scaffold page [name]`, `scaffold schema [name]`, `scaffold docker`, `scaffold tests`. |
+| `audit` | Dispatch `security-specialist` (OWASP) + `qa-specialist` (coverage) + `tech-lead` (standards) in parallel. |
+| `handoff` | Prepare full handoff: update STATE.md, write detailed AI_AGENT_HANDOFF.md, log session — ready for a different AI agent. |
+
+---
+
 ## Quality Gates (tech-lead enforces)
 
 Before any feature is marked complete:
