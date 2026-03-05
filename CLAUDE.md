@@ -6,8 +6,8 @@
 
 ## On Session Start
 
-1. Read `AI/STATE.md` and `AI/AI_AGENT_HANDOFF.md` to synchronize project context
-2. Read `AI/AI_RULES.md` for technical mandates
+1. Read `AI/state/STATE.md` and `AI/state/AI_AGENT_HANDOFF.md` to synchronize project context
+2. Read `AI/documentation/AI_RULES.md` for technical mandates
 3. Review `AI/documentation/MULTI_AGENT_ROUTING.md` for routing reference
 4. Dispatch `project-manager` to assess current status and identify the next work priority
 
@@ -15,7 +15,7 @@
 
 ## Specialist Subagents Available
 
-Claude Code auto-discovers these from `AI/.claude/agents/`:
+Claude Code auto-discovers agents from `AI/.claude/agents/` and skills from `AI/.claude/skills/`:
 
 | Agent | Trigger Keywords |
 |-------|-----------------|
@@ -105,6 +105,14 @@ project-manager → STATE.md
 
 ---
 
+## Skills (59 Playbooks)
+
+Each agent has 3-5 skills — repeatable playbooks auto-discovered from `AI/.claude/skills/`. Skills trigger when your prompt matches their keywords.
+
+See `AI/skills/README.md` for the full catalog.
+
+---
+
 ## Quality Gates (tech-lead enforces)
 
 Before any feature is marked complete:
@@ -120,13 +128,13 @@ Before any feature is marked complete:
 ## State Management Protocol
 
 ```
-Session start:  Read AI/STATE.md + AI/AI_AGENT_HANDOFF.md
-After each task: Update AI/STATE.md autonomously — do not wait for user prompt
-Session end:    Update AI/STATE.md + AI/AI_AGENT_HANDOFF.md
-Agent log:      Write to AI/claude.md with timestamp
+Session start:  Read AI/state/STATE.md + AI/state/AI_AGENT_HANDOFF.md
+After each task: Update AI/state/STATE.md autonomously — do not wait for user prompt
+Session end:    Update AI/state/STATE.md + AI/state/AI_AGENT_HANDOFF.md
+Agent log:      Write to AI/logs/claude_log.md with timestamp
 ```
 
-**NEVER wait for the user to ask you to save state.** Update STATE.md after every significant action.
+**NEVER wait for the user to ask you to save state.** Update state/STATE.md after every significant action.
 
 ---
 

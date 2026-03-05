@@ -207,10 +207,10 @@ Specialists in parallel lanes MUST NOT write to the same files simultaneously.
 ## State Management Between Agents
 
 ```
-Read on session start:     AI/STATE.md, AI/AI_AGENT_HANDOFF.md
-Write after every task:    AI/STATE.md (what done, decisions, blockers, next steps)
-Write on handoff:          AI/AI_AGENT_HANDOFF.md (specific next agent instructions)
-Log every action:          AI/claude.md or AI/gemini.md or AI/copilot.md
+Read on session start:     AI/state/STATE.md, AI/state/AI_AGENT_HANDOFF.md
+Write after every task:    AI/state/STATE.md (what done, decisions, blockers, next steps)
+Write on handoff:          AI/state/AI_AGENT_HANDOFF.md (specific next agent instructions)
+Log every action:          AI/logs/claude_log.md or AI/logs/gemini.md or AI/logs/copilot.md
 ```
 
 The file system is the shared memory. All specialists must keep it current.
