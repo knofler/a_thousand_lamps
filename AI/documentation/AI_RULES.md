@@ -6,11 +6,17 @@ You are an expert AI development agent operating under the technical direction o
 ## 2. Technology Stack & Framework Rules
 When generating code or proposing solutions, strictly adhere to the following ecosystem preferences:
 * **Containerization:** All applications must be built using Docker. The preferred setup is to run the app, API, and database (MongoDB) using Docker Compose. All environment variables must be mapped to the `docker-compose` file.
+* **Docker Container Naming (MANDATORY):** All `container_name` values in `docker-compose.yml` MUST use the **exact repo folder name** as prefix, preserving original casing. Format: `{folderName}-app`, `{folderName}-mongo`, `{folderName}-api`, `{folderName}-mongo-express`. Example: folder `agentFlow` → `agentFlow-app`, `agentFlow-mongo`. Folder `my_biz` → `my_biz-app`, `my_biz-mongo`. If containers don't comply on `agent mode` or `session start`, the agent MUST: (1) `docker compose down` to stop non-compliant containers, (2) fix `container_name` values in `docker-compose.yml`, (3) `docker compose up -d --build` to rebuild. No exceptions.
+* **Project Identity:** Every session must display the current project/repo name prominently at start. The `00-project-identity.sh` hook handles this automatically.
+* **No Local npm/node/npx:** NEVER run `npm install`, `npm ci`, `npx`, or `node` commands directly on the host machine. Always use `docker compose exec app <command>`. The only exception is CI runners (GitHub Actions) where Docker is not available.
+* **Branching Strategy:** All repos use a two-branch model: `main` (production) and `test` (staging). NEVER push directly to `main`. Always push to `test` first, verify on the Vercel preview URL, then merge via PR.
+* **Git Email (MANDATORY):** GitHub blocks pushes with private emails. On EVERY push failure mentioning `GH007` or `email privacy`, fix it immediately — do NOT ask the user which option they prefer. Run: `git config user.email "3438317+knofler@users.noreply.github.com"` (repo-local, not global). Then amend unpushed commits with: `GIT_COMMITTER_EMAIL="3438317+knofler@users.noreply.github.com" GIT_COMMITTER_NAME="Rumman Ahmed" git commit --amend --no-edit --author="Rumman Ahmed <3438317+knofler@users.noreply.github.com>"`. Both author AND committer email must be the noreply address. Never change `--global` git config.
 * **Frontend:** Always use Next.js for frontend development.
 * **API Hosting:** Use Render.com for API deployments.
 * **CI/CD & Deployment:** Use GitHub Actions for automation. Include `vercel.json` for Vercel deployments and proper environment variable management.
 * **Repository Standards:** Every repository must be initialized as a git repo. All ignore files (e.g., `.gitignore`, `.dockerignore`) must be included. Provide example environment files (e.g., `.env.example`).
 * **Documentation & Quality:** Every project must contain detailed documentation, comprehensive code commenting, and a thorough `README.md`.
+* **API Documentation (MANDATORY):** Any project with API endpoints MUST have: (1) An OpenAPI 3.0 spec served at `/api/openapi.json` — this is the single source of truth. (2) Scalar interactive docs at `/docs` via `@scalar/nextjs-api-reference` — the human-facing docs page. (3) OpenAPI MCP server in `.mcp.json` — so AI agents can discover and call endpoints. Templates: `AI/templates/api/openapi-spec.ts` (spec route) and `AI/templates/api/docs-route.ts` (Scalar route). Install: `docker compose exec app npm install @scalar/nextjs-api-reference`. Every new endpoint MUST be added to the OpenAPI spec — undocumented endpoints are not considered complete.
 * **AI/LLM Implementations:** For AI-driven workflows, enforce secure API key management, modular prompt orchestration, and efficient token handling. 
 
 ## 3. The Multi-Agent Protocol & Autonomous State
@@ -84,3 +90,31 @@ Each specialist agent has 3-5 skills — repeatable playbooks auto-discovered fr
 * **Gemini / Copilot / Other:** `AI/agents/` (adopt roles manually using prompts in those files)
 * **Routing reference:** `AI/documentation/MULTI_AGENT_ROUTING.md`
 * **Skills catalog:** `AI/skills/README.md`
+
+## 6. Tailwind CSS + shadcn/ui (Frontend Standard)
+
+All Next.js projects use **Tailwind CSS v4** + **shadcn/ui**. Full guide: `AI/documentation/DESIGN_SYSTEM.md`.
+
+### Mandatory Rules
+* **Utility-first:** Use Tailwind classes directly in JSX. Do NOT create CSS files for component styling.
+* **No inline styles:** Never use `style={{ }}` props. Use Tailwind classes. Only exception: truly dynamic values (e.g., `style={{ width: \`${percent}%\` }}`).
+* **Design tokens:** All colors, fonts, and spacing come from the `@theme` block in `globals.css`. Never hardcode hex values — use `bg-brand-accent`, not `bg-[#00B14C]`.
+* **cn() for conditional classes:** Use the `cn()` utility from `@/lib/utils` for conditional class merging. Never do string concatenation.
+* **shadcn before custom:** Before building a component from scratch, check if shadcn has one: `docker compose exec app npx shadcn@latest add [component]`. Modify the shadcn component rather than building a parallel one.
+* **Component location:** shadcn components: `src/components/ui/`. Project components: `src/components/`. Never mix them.
+* **Responsive-first:** Mobile layout is the default. Use `md:` and `lg:` prefixes for larger screens.
+* **Dark mode:** Use `dark:` prefix for dark mode variants. Define dark tokens in the CSS config.
+* **No @apply in components:** Avoid `@apply` in CSS files — only use in `@layer base` for global defaults.
+* **No host npm:** All Tailwind/shadcn commands run inside Docker: `docker compose exec app npx shadcn@latest add button`.
+
+### Key Files
+```
+postcss.config.mjs           <-- PostCSS with @tailwindcss/postcss
+src/app/globals.css           <-- @import "tailwindcss" + @theme design tokens
+src/components/ui/            <-- shadcn components (owned source code)
+src/lib/utils.ts              <-- cn() helper
+components.json               <-- shadcn config
+```
+
+### Template Files
+Design templates for new projects: `AI/templates/design/` (postcss.config.mjs, globals.css, utils.ts)

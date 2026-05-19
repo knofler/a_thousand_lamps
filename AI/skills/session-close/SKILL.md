@@ -26,6 +26,7 @@ Wrap up the current work session and persist all context.
 ### 3. Update state/AI_AGENT_HANDOFF.md
 
 - Open `AI/state/AI_AGENT_HANDOFF.md`.
+- Update the `Last machine:` field with the current hostname (`hostname -s`).
 - Write context the next session needs to pick up seamlessly:
   - What was the focus of this session?
   - What is the immediate next step?
@@ -52,14 +53,30 @@ Append an entry to `logs/claude_log.md`:
 - ...
 ```
 
-### 5. Final Checks
+### 5. SONA Pattern Training
+
+Run end-of-session pattern training:
+
+- **Score reused patterns**: For each pattern from SONA context that was used this session:
+  - If it helped: `source memory/lib/sona.sh && sona_score_pattern <id> success`
+  - If it didn't apply: `source memory/lib/sona.sh && sona_score_pattern <id> failure`
+- **Extract new patterns**: For any non-obvious technique or lesson learned:
+  - Create pattern JSON following `memory/patterns/SCHEMA.md` format
+  - Save via: `source memory/lib/sona.sh && sona_extract_pattern '<json>'`
+  - Good candidates: debugging breakthroughs, configuration gotchas, workflow improvements
+- **Prune if needed** (every ~10 sessions): `source memory/lib/sona.sh && sona_prune`
+- **Stats**: `source memory/lib/sona.sh && sona_stats`
+
+The Stop hook (`hooks/stop/02-sona-session-train.sh`) will also remind about this step.
+
+### 6. Final Checks
 
 - Verify state/STATE.md was saved successfully.
 - Verify state/AI_AGENT_HANDOFF.md was saved successfully.
 - Verify logs/claude_log.md was appended to (not overwritten).
 - Confirm to the user that state has been persisted.
 
-### 6. Output
+### 7. Output
 
 Present a brief summary to the user:
 
