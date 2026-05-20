@@ -69,14 +69,27 @@ Run end-of-session pattern training:
 
 The Stop hook (`hooks/stop/02-sona-session-train.sh`) will also remind about this step.
 
-### 6. Final Checks
+### 6. Re-embed state into RAG
+
+After STATE.md / AI_AGENT_HANDOFF.md are written, call `memory_reindex` via the MCP gateway so the new session block is searchable through `memory_search` immediately. Best-effort — failure is non-fatal (file write is the source of truth; rotation guard re-runs it on next `agent mode` anyway).
+
+```bash
+curl -sf -X POST http://localhost:3100/mcp -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_reindex","arguments":{"scope":"master"}}}' \
+  | jq -r '.result.content[0].text // "memory_reindex skipped (gateway down)"' \
+  || echo "memory_reindex skipped (gateway unreachable)"
+```
+
+Expected: `totals.stored` counts the freshly-added chunks (typically 1–2 — the new session block + handoff change). Idempotent via content-hash dedup, so reruns are safe.
+
+### 7. Final Checks
 
 - Verify state/STATE.md was saved successfully.
 - Verify state/AI_AGENT_HANDOFF.md was saved successfully.
 - Verify logs/claude_log.md was appended to (not overwritten).
 - Confirm to the user that state has been persisted.
 
-### 7. Output
+### 8. Output
 
 Present a brief summary to the user:
 
