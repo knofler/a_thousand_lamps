@@ -192,7 +192,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/notify-telegram.sh permission",
+            "command": "./AI/scripts/notify-telegram.sh permission",
             "timeout": 5000
           }
         ]
@@ -219,7 +219,7 @@
           },
           {
             "type": "command",
-            "command": "./scripts/notify-telegram.sh done",
+            "command": "./AI/scripts/notify-telegram.sh done",
             "timeout": 5000
           }
         ]
