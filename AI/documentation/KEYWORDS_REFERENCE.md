@@ -1,0 +1,55 @@
+# Keywords Reference (Extended) — Project Repo
+
+Less-frequently-used keywords for this project repo. Core keywords (`start work`, `agent mode`, `wrap up`, `ship it`, `merge it`, `yolo god`, `yolo`, `yolo off`, `hello`) remain in `CLAUDE.md` because the model needs their full protocol in context every session.
+
+The keywords below are loaded on demand: when the user types one of them, Read this file to get the full action description.
+
+## Status & review
+
+| Keyword | Action |
+|---------|--------|
+| `status` | Read `AI/state/STATE.md` and give a quick summary: done, in-progress, blocked, next priority. |
+| `review` | Dispatch `tech-lead` for code review + `qa-specialist` for test coverage check on recent changes. |
+| `plan [feature]` | Dispatch `solution-architect` + `product-manager` + `tech-ba` to break down a feature into specs, stories, and ADR before code. |
+| `scaffold [thing]` | Generate boilerplate via relevant specialists: `scaffold api`, `scaffold page [name]`, `scaffold schema [name]`, `scaffold docker`, `scaffold tests`. |
+| `audit` | Dispatch `security-specialist` (OWASP) + `qa-specialist` (coverage) + `tech-lead` (standards) in parallel. |
+| `handoff` | Prepare full handoff: update STATE.md, write detailed AI_AGENT_HANDOFF.md, log session — ready for a different AI agent. |
+| `list` | **Audit all managed repos.** Read `config/managed_repos.txt` from the AI master repo, check each path for: AI/ folder exists, STATE.md exists, CLAUDE.md exists, GEMINI.md exists. Output a markdown table with columns: Project, Level (standalone/workspace root/sub-repo), AI/, STATE.md, CLAUDE.md, GEMINI.md. Bold workspace roots and standalones. |
+| `show urls` | Show all deployment URLs for this project: production (main branch) and preview (test branch). Check `.vercel/project.json` for Vercel project name, `render.yaml` for Render. Production: `https://{project}.vercel.app`. Preview: `https://{project}-git-test-{org}.vercel.app`. |
+
+## Connect Hub
+
+| Keyword | Action |
+|---------|--------|
+| `check bugs` | Pull open bugs from the Connect Hub DB (`BugReport` collection). List by severity. Suggest which to fix first based on severity and age. |
+| `fix bug [id]` | Pull bug details from DB. Set status to "working". Analyse root cause, implement fix on `test` branch, push, create PR. Update bug: status → "solved", resolution, prUrl. |
+| `check features` | Pull open feature requests from DB (`FeatureRequest` collection). List by priority and upvotes. Suggest which to implement first. |
+| `build feature [id]` | Pull feature details from DB. Set status to "working". Generate implementation plan, implement on `test` branch, push, create PR. Update feature: status → "solved", prUrl. |
+| `triage` | Pull all "reported" bugs and features from DB. AI analyses each: set severity/priority, detect duplicates, assign to specialist agent, update status to "triaged". |
+| `connect setup` | **Integrate Connect Hub into this project.** 1. Read `AI/documentation/CONNECT_HUB.md` — this is the FULL instruction doc with every step. 2. Check if Connect Hub files exist in `src/models/BugReport.ts`, `src/app/api/connect/`, `src/app/connect/`. If missing, tell user: "Connect Hub files not found. Run this from the master AI repo first: `./scripts/init_connect.sh /path/to/this/project`". 3. If files exist, follow Steps 1-8 in CONNECT_HUB.md: verify files → fix import placeholders (`__DB_IMPORT__`, `__AUTH_IMPORT__`, `__MODELS_PATH__`) → update middleware → update model barrel exports → add nav item → type check → test → report summary table. |
+
+## Productionisation
+
+| Keyword | Action |
+|---------|--------|
+| `make preview` | **Set up the test→preview pipeline for this repo.** 1. Create `test` branch from `main` if not exists. 2. Push `test` to remote. 3. Add CI workflows (`.github/workflows/ci.yml` + `merge-gate.yml`) if missing. 4. Set branch protection via `gh` CLI. 5. Sync `test` with latest `main`. 6. Report preview URL. |
+| `make prod` | **Productionise this project with branching strategy.** 0. **Check first:** Look for existing Vercel config, Render config, Atlas connection. If already configured → verify health, report status, done. 1. **Set up branching:** Create `test` branch, add CI workflows (`.github/workflows/ci.yml` + `merge-gate.yml`), set branch protection rules. 2. **Provision infrastructure:** Detect project type (Next.js → Vercel, Express → Render, MongoDB → Atlas). Create Vercel project + deploy from `main`. Set env vars for both Production and Preview environments. 3. **Verify:** Push test commit to `test` branch, confirm CI passes + Vercel preview deploys. Verify health endpoint. 4. **Update:** State files with production URLs + preview URL pattern. |
+
+## Remote control & Telegram
+
+| Keyword | Action |
+|---------|--------|
+| `remote` | Start `claude remote-control` for this project. Run `./AI/scripts/remote.sh` — prints QR code/URL to connect from phone, tablet, or browser. Session runs locally. See `AI/documentation/MOBILE_CONTROL.md`. |
+| `telegram setup` | Run guided Telegram bot setup: `./AI/scripts/telegram-setup.sh`. Checks Bun installed, installs plugin, configures bot token, prints next steps for pairing and lockdown. See `AI/documentation/MOBILE_CONTROL.md`. |
+| `telegram start` | Launch Claude Code with Telegram channel active: `claude --channels plugin:telegram@claude-plugins-official`. Requires prior setup via `telegram setup`. |
+
+## Fleet inventory (`ai tools` family)
+
+| Keyword | Action |
+|---------|--------|
+| `ai tools` | **Fleet inventory — show 5 of each.** 1. Try live gateway first: `curl -s http://localhost:3100/mcp` for MCP tools, `curl -s http://localhost:3200/api/agents` + `/api/skills` for counts. If gateway down, fall back to reading `AI/agents/`, `AI/skills/`, and the master repo's `runtime/src/mcp/tools.ts`. 2. Print four sections of 5 rows each: **Agents** (name, category, one-line), **Skills** (name, description, triggers), **MCP Tools** (name, category, purpose), **Gateway Routes** (one row per surface: `:3100` MCP, `:3200` REST, `:3201` WS, `:3210` dashboard). 3. End each section with `… N more — run "more <type>" to see all`. Full reference lives in the master repo's README. |
+| `more agents` | Expand the `ai tools` agents block — list all 57 agents grouped by category. |
+| `more skills` | Expand the `ai tools` skills block — list all 135 skills with triggers. |
+| `more mcp` / `more mcp tools` | Expand all 15 MCP tool definitions with input schemas (pull from `http://localhost:3100/mcp` `tools/list`). |
+| `more routes` | Expand every HTTP (`:3200`), WebSocket (`:3201`), MCP (`:3100`), and dashboard (`:3210`) route. |
+| `ai tools help` / `help ai tools` | Print the `ai tools` usage block (default behavior + sub-commands + data sources). |
