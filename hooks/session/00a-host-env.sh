@@ -7,6 +7,15 @@ set +e
 #    This tells ALL gateways which machine should own Telegram polling.
 #    The other machine's gateway reads this file every 10s and deactivates.
 
+# Skip inside a container (e.g. the gateway's own hook registry): the Dropbox
+# bind is read-only here so the write fails with EROFS, and `hostname -s` is the
+# container ID — claiming the container as the Telegram host would be wrong, not
+# just noisy. This hook is meant to run on the HOST at session start.
+if [ -f /.dockerenv ] || [ -n "$MYAI_IN_CONTAINER" ]; then
+  echo "00a-host-env: skipped (inside container — host-only hook)"
+  exit 0
+fi
+
 HOSTNAME_SHORT=$(hostname -s)
 
 # Docker Compose env (local only, not synced)

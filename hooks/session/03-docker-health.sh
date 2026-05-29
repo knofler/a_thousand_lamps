@@ -4,6 +4,14 @@ set +e
 # Event: SessionStart
 # Verifies Docker daemon is running and project containers are healthy
 
+# Skip inside a container (e.g. the gateway's own hook registry): there's no
+# Docker daemon to query from in here, so this would print a misleading
+# "daemon not running" warning. Host-only hook.
+if [ -f /.dockerenv ] || [ -n "$MYAI_IN_CONTAINER" ]; then
+  echo "03-docker-health: skipped (inside container — host-only hook)"
+  exit 0
+fi
+
 # Check Docker daemon
 if ! docker info &>/dev/null; then
   echo "WARNING: Docker daemon is not running. Start Docker Desktop first."

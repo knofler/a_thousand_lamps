@@ -4,6 +4,14 @@ set +e
 # Event: SessionStart
 # On machine switch: FORCE remove all containers + images, rebuild fresh
 
+# Skip inside a container (e.g. the gateway's own hook registry): `hostname -s`
+# is the container ID, so this would always "detect" a machine switch and emit
+# the destructive `docker compose down -v` banner. Host-only hook.
+if [ -f /.dockerenv ] || [ -n "$MYAI_IN_CONTAINER" ]; then
+  echo "01-machine-switch: skipped (inside container — host-only hook)"
+  exit 0
+fi
+
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 PROJECT=$(basename "$ROOT")
 

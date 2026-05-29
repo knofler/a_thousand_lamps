@@ -4,6 +4,15 @@ set +e
 # Event: SessionStart
 # Scans for Dropbox conflict files that pollute the repo
 
+# Skip inside a container (e.g. the gateway's own hook registry): the full-tree
+# find over the Dropbox bind is slow there and blows the 10s hook timeout, and
+# conflict scanning is the HOST's job — Dropbox syncs on the host, not in the
+# container. Running it here is redundant and the timeout cascades into a crash.
+if [ -f /.dockerenv ] || [ -n "$MYAI_IN_CONTAINER" ]; then
+  echo "02-dropbox-conflicts: skipped (inside container — host-only hook)"
+  exit 0
+fi
+
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 
 CONFLICTS=$(find "$ROOT" -maxdepth 5 \
