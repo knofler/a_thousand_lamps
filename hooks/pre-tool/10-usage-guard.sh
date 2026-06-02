@@ -86,6 +86,21 @@ else
   esac
 fi
 
+# ── Read block policy from config ──
+# block_at_percent: null/absent  → NEVER hard-block (warn-only mode)
+# block_tools: []                → no tool is ever blocked
+# Falls back to legacy behavior (block heavy tools at 95%) only when config/jq missing,
+# so a broken/absent config never silently removes the safety backstop.
+BLOCK_AT_PERCENT=""
+BLOCK_TOOLS=""
+if [[ -n "$CONFIG_FILE" ]] && command -v jq &>/dev/null; then
+  BLOCK_AT_PERCENT=$(jq -r '.block_at_percent // empty' "$CONFIG_FILE" 2>/dev/null)
+  BLOCK_TOOLS=$(jq -r '(.block_tools // []) | join(" ")' "$CONFIG_FILE" 2>/dev/null)
+else
+  BLOCK_AT_PERCENT=95
+  BLOCK_TOOLS="Bash Edit Write Agent"
+fi
+
 # ── Increment counters ──
 action_count=$(( action_count + 1 ))
 weighted_actions=$(awk "BEGIN { printf \"%.1f\", $weighted_actions + $WEIGHT }")
@@ -125,11 +140,15 @@ if [[ "$usage_pct" -ge 95 ]]; then
     rm -f "${METRICS_FILE}.bak"
   fi
 
-  # Is this a heavy tool that should be blocked?
+  # Is this a tool that should be blocked? Governed by config (block_at_percent /
+  # block_tools). With block_at_percent=null + block_tools=[] this is always false
+  # → warn-only mode (the 95% branch still prints the EMERGENCY nudge, never blocks).
   IS_HEAVY=false
-  case "$TOOL_NAME" in
-    Bash|Edit|Write|Agent) IS_HEAVY=true ;;
-  esac
+  if [[ -n "$BLOCK_AT_PERCENT" && "$BLOCK_AT_PERCENT" != "null" && "$usage_pct" -ge "$BLOCK_AT_PERCENT" ]]; then
+    for bt in $BLOCK_TOOLS; do
+      [[ "$TOOL_NAME" == "$bt" ]] && IS_HEAVY=true && break
+    done
+  fi
 
   # Allow writes to AI_AGENT_HANDOFF.md even at 95%
   IS_HANDOFF=false

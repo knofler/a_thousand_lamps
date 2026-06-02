@@ -308,6 +308,8 @@ On session start, `11-yolo-status.sh` hook checks `AI/state/.yolo`: active → d
 
 The Usage Guard tracks session capacity via two metrics: **elapsed time** and **weighted action count** (tool calls as token proxy). The higher percentage is the effective level. Config: `AI/config/session-limits.json`. Metrics: `AI/state/.session-metrics`.
 
+> **These are self-imposed framework guards, NOT Claude/API limits.** They're tunable proxies to prompt clean wrap-ups; raising them grants no extra model capacity (the real ceiling is the context window, which auto-compacts). Current defaults: **480 min / 800 weighted actions**, **warn-only** (`block_at_percent: null`, `block_tools: []`) — nags at 80/90/95% but never freezes tools. To re-enable the hard block, set `block_at_percent` + `block_tools` in `AI/config/session-limits.json`.
+
 Hooks automatically emit warnings. **These are mandatory directives, not suggestions.**
 
 ### At 80% — YELLOW WARNING
@@ -328,14 +330,14 @@ You will see: `USAGE GUARD: RED WARNING — 90% CAPACITY`
 3. If `wrap up` would exceed budget, skip to 95% emergency protocol.
 4. **Tell user**: "Session at 90% — wrapping up now. Continue with Gemini/Copilot using AI_AGENT_HANDOFF.md."
 
-### At 95% — EMERGENCY (TOOL BLOCK ACTIVE)
+### At 95% — EMERGENCY
 
-You will see: `USAGE GUARD: EMERGENCY` and Bash/Edit/Write will be **BLOCKED** except writes to AI_AGENT_HANDOFF.md.
+You will see: `USAGE GUARD: EMERGENCY — 95% CAPACITY`. With the **default warn-only config**, tools are **NOT** blocked — this is a strong nudge, not a freeze. (If `block_at_percent`/`block_tools` are set in config, Bash/Edit/Write/Agent are blocked except writes to AI_AGENT_HANDOFF.md.)
 
 1. **Write `AI/state/AI_AGENT_HANDOFF.md` immediately** with minimal content: what was done (bullets), what's in progress (branch, uncommitted files), what should be done next (prioritized), current blockers, last machine hostname.
-2. **Do NOT** attempt STATE.md, logs, SONA, or dashboard — no budget.
-3. **Do NOT** attempt git commit/push — Bash is blocked.
-4. Tell user: "Emergency handoff saved. Please commit/push manually, then continue with another agent."
+2. **Prioritize** the rest of the budget: handoff > commit > push > STATE.md > logs.
+3. If the hard block IS enabled, only handoff writes pass — tell the user to commit/push manually.
+4. Tell user: "At 95% — handoff saved. Wrapping up / continue with another agent if needed."
 
 ---
 
