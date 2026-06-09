@@ -232,6 +232,11 @@
             "type": "command",
             "command": "./hooks/session/13-ram-guard.sh",
             "timeout": 8000
+          },
+          {
+            "type": "command",
+            "command": "./hooks/session/14-rag-recall-status.sh",
+            "timeout": 5000
           }
         ]
       }
