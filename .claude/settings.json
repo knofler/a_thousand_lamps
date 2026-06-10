@@ -242,6 +242,11 @@
             "type": "command",
             "command": "./hooks/session/15-token-budget-status.sh",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "./hooks/session/16-org-context.sh",
+            "timeout": 3000
           }
         ]
       }
