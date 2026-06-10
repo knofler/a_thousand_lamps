@@ -14,5 +14,20 @@
   "warn_at_percent": [80, 90, 95],
   "block_at_percent": null,
   "block_tools": [],
-  "allow_through_tools": ["Read", "Glob", "Grep"]
+  "allow_through_tools": ["Read", "Glob", "Grep"],
+
+  "token_budget": {
+    "_comment": "EARLY-WARNING token-burn estimate (hooks/pre-tool/15-token-budget-guard.sh + hooks/session/15-token-budget-status.sh). GROUND TRUTH is Claude Code's `/usage` command (authoritative server-side session + weekly %); this hook is an on-disk APPROXIMATION because the real rate-limit % is NOT persisted to any file a hook can read (verified 2026-06-10: stats-cache.json has cumulative tokens only; sessions/*.json is process metadata). It sums actual OUTPUT tokens from transcripts under ~/.claude/projects (the cross-repo, account-level signal a per-repo action counter can't see). CALIBRATED 2026-06-10 against a real /usage reading: estimator showed ~2.76M output tokens / 5h across all repos when /usage reported 63% of the session limit, so 100% ~= 4.4M output tokens. RECALIBRATE when it drifts: run /usage, note its session %, read the session-start hook's token count, set output_budget = count / (pct/100). Window anchoring is approximate (fixed 300-min lookback vs Anthropic's first-use-anchored 5h window) so treat as an early nudge, not a precise gauge. Warn-only — never blocks. The checkpoint threshold fires a MANDATORY auto-handoff directive EARLY so hitting the wall is always survivable.",
+    "enabled": true,
+    "session_output_budget": 600000,
+    "warn_at_percent": [70, 85, 95],
+    "checkpoint_at_percent": 70,
+    "rolling_window": {
+      "enabled": true,
+      "window_minutes": 300,
+      "output_budget": 4400000,
+      "warn_at_percent": [70, 85, 95],
+      "cache_ttl_seconds": 90
+    }
+  }
 }

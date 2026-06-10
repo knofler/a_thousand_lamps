@@ -237,6 +237,11 @@
             "type": "command",
             "command": "./hooks/session/14-rag-recall-status.sh",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "./hooks/session/15-token-budget-status.sh",
+            "timeout": 5000
           }
         ]
       }
@@ -304,6 +309,11 @@
             "type": "command",
             "command": "./hooks/pre-tool/10-usage-guard.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "./hooks/pre-tool/15-token-budget-guard.sh",
+            "timeout": 5000
           }
         ]
       }
