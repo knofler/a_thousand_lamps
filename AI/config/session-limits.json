@@ -28,6 +28,12 @@
       "output_budget": 4400000,
       "warn_at_percent": [70, 85, 95],
       "cache_ttl_seconds": 90
+    },
+    "usage_ground_truth": {
+      "_comment": "Periodic /usage ground-truth nudge. The agent cannot run /usage itself (interactive Claude Code command — no tool/MCP surface), so when burn is elevated this emits a THROTTLED reminder to run /usage (or ask the user to) for the authoritative server-side %, since the metering above is only an estimate. interval_minutes throttles the nudge (default every 2 min); floor_percent is the higher-of session/rolling % at/above which it starts. Warn-only.",
+      "enabled": true,
+      "interval_minutes": 2,
+      "floor_percent": 70
     }
   }
 }

@@ -78,23 +78,25 @@ sess_pct=0
 
 # ── Dedup state (per transcript) ─────────────────────────────────────────────
 STATE="$AIDIR/state/.token-metrics"
-prev_transcript=""; sess_warned=""; checkpointed=0
+prev_transcript=""; sess_warned=""; checkpointed=0; usage_prompted_epoch=0
 if [ -f "$STATE" ]; then
   prev_transcript=$(sed -n 's/^transcript=//p' "$STATE" | head -1)
   sess_warned=$(sed -n 's/^sess_warned=//p' "$STATE" | head -1)
   checkpointed=$(sed -n 's/^checkpointed=//p' "$STATE" | head -1)
+  usage_prompted_epoch=$(sed -n 's/^usage_prompted_epoch=//p' "$STATE" | head -1)
 fi
 # New session (transcript changed) → reset dedup
 if [ "$prev_transcript" != "$TRANSCRIPT" ]; then
-  sess_warned=""; checkpointed=0
+  sess_warned=""; checkpointed=0; usage_prompted_epoch=0
 fi
-: "${checkpointed:=0}"
+: "${checkpointed:=0}"; : "${usage_prompted_epoch:=0}"
 
 write_state() {
   cat > "$STATE" <<EOF
 transcript=$TRANSCRIPT
 sess_warned=$sess_warned
 checkpointed=$checkpointed
+usage_prompted_epoch=$usage_prompted_epoch
 EOF
 }
 
@@ -203,6 +205,31 @@ computed_epoch=${rc_epoch:-$NOW}
 rolling_output=${rc_out:-$roll_out}
 rolling_warned=$roll_warned
 EOF
+  fi
+fi
+
+# ── Periodic /usage ground-truth reminder (throttled, when burn elevated) ─────
+# The agent can't run /usage itself — it's an interactive Claude Code command
+# with no tool/MCP surface. So when the higher of session/rolling burn is at or
+# above the floor, nudge (at most once per interval_minutes) to run /usage — the
+# authoritative reading — and recalibrate the estimate if it diverges.
+UG_ENABLED=$(jq -r '.token_budget.usage_ground_truth.enabled // false' "$CONFIG" 2>/dev/null)
+if [ "$UG_ENABLED" = "true" ]; then
+  UG_INTERVAL=$(jq -r '.token_budget.usage_ground_truth.interval_minutes // 2' "$CONFIG" 2>/dev/null)
+  UG_FLOOR=$(jq -r '.token_budget.usage_ground_truth.floor_percent // 70' "$CONFIG" 2>/dev/null)
+  hi_pct=${sess_pct:-0}
+  [ "${roll_pct:-0}" -gt "$hi_pct" ] 2>/dev/null && hi_pct=${roll_pct:-0}
+  if [ "$hi_pct" -ge "$UG_FLOOR" ] 2>/dev/null; then
+    elapsed=$(( NOW - usage_prompted_epoch ))
+    if [ "$elapsed" -ge "$(( UG_INTERVAL * 60 ))" ] 2>/dev/null; then
+      echo ""
+      echo "[TOKEN GUARD: GROUND-TRUTH CHECK DUE — burn ~${hi_pct}% (estimate)]"
+      echo "  Run /usage now for the authoritative session + weekly %. This hook is an"
+      echo "  on-disk APPROXIMATION; /usage is truth. If they diverge, recalibrate"
+      echo "  token_budget.*.output_budget (formula in config/session-limits.json)."
+      usage_prompted_epoch=$NOW
+      emitted=1
+    fi
   fi
 fi
 
