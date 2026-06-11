@@ -217,6 +217,9 @@ UG_ENABLED=$(jq -r '.token_budget.usage_ground_truth.enabled // false' "$CONFIG"
 if [ "$UG_ENABLED" = "true" ]; then
   UG_INTERVAL=$(jq -r '.token_budget.usage_ground_truth.interval_minutes // 2' "$CONFIG" 2>/dev/null)
   UG_FLOOR=$(jq -r '.token_budget.usage_ground_truth.floor_percent // 70' "$CONFIG" 2>/dev/null)
+  # Sanitize: only digits survive into bash arithmetic; malformed config falls back to defaults
+  echo "$UG_INTERVAL" | grep -qE '^[0-9]+$' || UG_INTERVAL=2
+  echo "$UG_FLOOR" | grep -qE '^[0-9]+$' || UG_FLOOR=70
   hi_pct=${sess_pct:-0}
   [ "${roll_pct:-0}" -gt "$hi_pct" ] 2>/dev/null && hi_pct=${roll_pct:-0}
   if [ "$hi_pct" -ge "$UG_FLOOR" ] 2>/dev/null; then

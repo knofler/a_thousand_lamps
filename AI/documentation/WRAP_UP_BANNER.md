@@ -13,7 +13,13 @@ The banner's status dots and the `ORG:` line MUST be tinted to the **active org 
 | `claude-personal` | `~/.claude-personal` | bold green | 🟢 |
 | `claude` (bare default) | `~/.claude` | bold yellow | 🟡 |
 
-Use the resolved dot (call it `{DOT}` below) for **every** status line in the banner, and fill `ORG:` with `{profile-label} · {organizationName}` read from that profile's `.claude.json` `oauthAccount.organizationName` (fall back to the email, then "unknown"). When multi-org isn't set up (only `~/.claude` exists), the dot is 🟢 (green = all good) and `ORG:` shows `claude · {org or "default"}` — preserves the old all-green look.
+Use the resolved dot (call it `{DOT}` below) for **every** status line in the banner, and fill `ORG:` with `{profile-label} · {organizationName}` read from that profile's `.claude.json` `oauthAccount.organizationName` (fall back to the email, then "unknown").
+
+**Default-profile precedence (resolves the bare-`claude` colour):**
+- **Multi-org IS set up** (any of `~/.claude-museum` / `~/.claude-tech` / `~/.claude-personal` exists) and the active profile is the bare `claude` → dot is 🟡 per the table (yellow = "default/unscoped profile while orgs are configured").
+- **Multi-org is NOT set up** (only `~/.claude` exists, the legacy single-profile case) → dot is 🟢 (green = all good) and `ORG:` shows `claude · {org or "default"}`, preserving the old all-green look.
+
+In short: 🟡 means "you have org profiles but are on the unscoped default"; 🟢 means "no multi-org setup at all".
 
 ```
 ╔══════════════════════════════════════════════════════════════════╗
