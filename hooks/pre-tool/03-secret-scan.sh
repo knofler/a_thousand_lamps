@@ -8,8 +8,15 @@ CMD=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null)
 # Only care about git add and git commit
 [[ "$CMD" != *"git add"* && "$CMD" != *"git commit"* ]] && exit 0
 
-# Block staging .env files explicitly (allow .env.example)
-[[ "$CMD" == *"git add"*".env"* && "$CMD" != *".env.example"* ]] && echo "BLOCKED: .env files must not be staged" && exit 2
+# Block staging real .env files (allow .env.example). Match `.env` only as a
+# complete filename token — followed by a recognised env suffix or a path/quote/
+# whitespace boundary, never by another letter — so legitimate names like
+# `.envrc` (direnv) or `setup_org_envrc.sh` do NOT false-positive.
+if [[ "$CMD" == *"git add"* ]] \
+   && printf '%s' "$CMD" | grep -qE '\.env(\.(local|production|development|test))?($|[[:space:]"'"'"'/])' \
+   && ! printf '%s' "$CMD" | grep -qE '\.env\.example'; then
+  echo "BLOCKED: .env files must not be staged"; exit 2
+fi
 
 # Block staging credentials
 [[ "$CMD" == *"git add"*".pem"* ]] && echo "BLOCKED: .pem files must not be staged" && exit 2
