@@ -118,3 +118,36 @@ components.json               <-- shadcn config
 
 ### Template Files
 Design templates for new projects: `AI/templates/design/` (postcss.config.mjs, globals.css, utils.ts)
+
+## 7. Scheduling Standard — Autonomous Work (fleet-wide, MANDATORY)
+
+There is exactly **one** correct way to schedule autonomous work in any repo. Divergence
+(observed 2026-06-12: some repos used gateway cron markers, others Claude Code cloud
+routines, others ad-hoc `SCHEDULE.md` files) fragments the view and/or bills tokens.
+
+* **Plan with `schedule plan`** — writes `AI/plan/MYTHOS_IMPROVEMENT_PLAN.md` + the portable
+  `AI/plan/schedule.json`, posts the 10-day plan via the gateway `plan_set` MCP tool
+  (→ dashboard `/plan`), schedules tasks via `AI/scripts/schedule_task.sh`, then auto
+  `ship it` + `wrap up -u`.
+* **The runner is the only executor** — the launchd `com.myai.cli-task-runner` (free Fable,
+  `claude-tech`, 0 API tokens) pulls tasks from the **gateway queue** by priority.
+* **NEVER** create gateway cron schedules or Claude Code cloud routines for per-repo work.
+* **Off-hours only** — autonomous runs fire **weekdays 6pm–9am Sydney + all weekend**; never
+  weekday 9am–6pm. Plan fire times auto-clamp into this band.
+* **Cross-device** — mobile/cloud sessions commit `AI/plan/schedule.json` to `main`; a CLI
+  `agent mode -a` on any Mac ingests it into the runner via `AI/scripts/push_schedule.sh`.
+
+## 8. Management-Issue → Distributed-Rule Protocol (master repo, MANDATORY)
+
+When a **fleet-wide management or process issue** is observed (repos diverging on a convention,
+an unsafe/expensive pattern spreading, a repeated mistake across sessions), the master repo MUST
+**codify the correction as a rule and redistribute it** — do not fix it case-by-case:
+
+1. Write the corrected standard as a numbered rule in this file (`documentation/AI_RULES.md`)
+   and, if it changes a keyword/protocol, update `CLAUDE.md` + `templates/CLAUDE_TEMPLATE.md` +
+   `documentation/KEYWORDS_REFERENCE.md`.
+2. Run `./scripts/update_all.sh` to push the rule to every managed repo.
+3. Commit and ship to `main` so all devices (CLI + mobile) inherit it.
+4. Note the issue + the rule in `state/AI_AGENT_HANDOFF.md`.
+
+The rule is the durable fix; a one-off patch in a single repo is not. Rules propagate; patches rot.
