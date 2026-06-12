@@ -247,6 +247,11 @@
             "type": "command",
             "command": "./hooks/session/16-org-context.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "./hooks/session/17-schedule-status.sh",
+            "timeout": 6000
           }
         ]
       }
