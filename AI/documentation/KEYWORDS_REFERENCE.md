@@ -17,6 +17,18 @@ The keywords below are loaded on demand: when the user types one of them, Read t
 | `list` | **Audit all managed repos.** Read `config/managed_repos.txt` from the AI master repo, check each path for: AI/ folder exists, STATE.md exists, CLAUDE.md exists, GEMINI.md exists. Output a markdown table with columns: Project, Level (standalone/workspace root/sub-repo), AI/, STATE.md, CLAUDE.md, GEMINI.md. Bold workspace roots and standalones. |
 | `show urls` | Show all deployment URLs for this project: production (main branch) and preview (test branch). Check `.vercel/project.json` for Vercel project name, `render.yaml` for Render. Production: `https://{project}.vercel.app`. Preview: `https://{project}-git-test-{org}.vercel.app`. |
 
+## Scheduling — autonomous work queue (STANDARD)
+
+> **The ONE correct way to schedule autonomous work in this repo: create a TASK in the myAI gateway queue.** A launchd CLI task runner (every few hours, free Fable window, `claude-tech` profile, subscription-billed, 0 API tokens) pulls the highest-priority pending task, works it on a `test` branch, then flips it to **Needs Review** for a human `ship it`. **Do NOT create gateway *cron schedules* for this work** — those bill API tokens and are disabled fleet-wide. Create a task; the runner schedules it by priority.
+
+| Keyword | Action |
+|---------|--------|
+| `schedule <description>` / `schedule task` | **Queue one autonomous task for this repo.** Run `./AI/scripts/schedule_task.sh --title "<imperative title>" [--priority P0..P3] [--agent <specialist>] [--desc "..."] [--model <id>]`. Defaults: repo = git basename, priority = P2, model = free-window Fable (claude-fable-5 until 2026-06-22, else agent-tier). Infer a clear imperative title, priority, and specialist from the request; pass `--desc` with acceptance criteria. Report the task ID + dashboard links. |
+| `schedule list` / `what's scheduled` | Show what's queued: `./AI/scripts/schedule_task.sh --list` (this repo) or `--list-all` (whole fleet). **Where to check:** dashboard `http://localhost:3210/tasks` + `/schedule` (Needs Review / Up Next); runner logs in `~/.ai-cli-runner/logs/`. The dashboard "Scheduled Runs" cron table is a *different*, mostly-disabled system — the real engine is the runner + this task queue. |
+| `schedule plan` | **Decompose a body of work into a queued backlog.** Read `AI/plan/*`, `AI/state/STATE.md`, handoff and TODOs; produce 6–12 session-sized tasks (~60–150 min each, atomic, verifiable, commit on `test`), each categorized (REFACTOR / FUNCTIONALITY / UIUX / PLAN-COMPLETION / QUALITY) with a specialist + priority; create them all via `schedule_task.sh`. Exclude credential/user-blocked items (billing, secret values, device testing) — leave those in the handoff. |
+
+**Task field standard:** `repo`, `title` (imperative, <90 chars), `priority` (P0–P3), `assignedAgent`, `recommendedModel`, `description` (what + acceptance), `source: manual`. Gateway must be running (host `http://localhost:3100`); `schedule_task.sh` checks reachability and tells you if it's down.
+
 ## Connect Hub
 
 | Keyword | Action |

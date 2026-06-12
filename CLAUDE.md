@@ -265,6 +265,8 @@ When the user types any of these, Read `AI/documentation/KEYWORDS_REFERENCE.md` 
 
 **Status & review:** `status`, `review`, `plan [feature]`, `scaffold [thing]`, `audit`, `handoff`, `list`, `show urls`
 
+**Scheduling (autonomous work queue — STANDARD):** `schedule <description>` / `schedule task`, `schedule list` / `what's scheduled`, `schedule plan` — queue/inspect tasks in the myAI gateway that the launchd CLI runner works autonomously on the free Fable window (`./AI/scripts/schedule_task.sh`). This is the ONE correct way to schedule work in this repo; never create gateway cron schedules for it.
+
 **Connect Hub:** `check bugs`, `fix bug [id]`, `check features`, `build feature [id]`, `triage`, `connect setup`
 
 **Productionisation:** `make preview`, `make prod`
