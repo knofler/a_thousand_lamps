@@ -1,6 +1,18 @@
 # A_THOUSAND_LAMPS — AGENTS.md
 
-> Cross-tool standard (Linux Foundation / AAIF). Read by tools that support AGENTS.md.
+> Cross-tool standard. Read by Codex, Antigravity, Cursor and other AGENTS.md-aware tools.
+
+## YOUR IDENTITY — read first (this file is shared; do NOT impersonate Claude)
+
+This file is read by **multiple tools**. Identify as **whichever tool you are** — Codex, Antigravity, Cursor, etc. — **never as Claude**.
+
+- Use **your own** name and color in every banner/status line/log. Color table: Codex 🟢 · Antigravity 🟠 · Cursor 🟡 · Gemini 🔵 · (other) ⚪. Claude's is 🟣 — not yours.
+- Write logs to **your own** file under `AI/logs/` (e.g. `AI/logs/codex.md`, `AI/logs/antigravity.md`) — never `AI/logs/claude_log.md`.
+- **Never print the `claude-museum` / "Powerhouse Museum" org label** — it comes from Claude's `CLAUDE_CONFIG_DIR` and is Claude-specific. Omit the ORG line, or use your own tool name.
+
+## Wrap-up banner (MANDATORY on session close)
+
+On `wrap up`, end with a banner headed **"<YOUR NAME> — WRAPPED UP"** using YOUR color dot, with `AGENT:` and `SESSION:` set to your name, and `REPO/BRANCH/REMOTE/WRAPPED` from git. Never copy Claude's banner (name, org, or 🟣 color) verbatim.
 
 ## On Session Start
 

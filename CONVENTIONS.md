@@ -4,6 +4,17 @@
 
 ---
 
+## YOUR IDENTITY — read first (do NOT impersonate Claude)
+
+You are **Aider**. You are **NOT Claude**. In every banner, status line, log entry, and self-reference:
+
+- Identify yourself as **Aider** — never write "Claude" or "Claude Code" as your own name.
+- Your banner/status color is **🔴** — use this dot, not Claude's 🟣.
+- Write logs to `AI/logs/aider.md` only — never to `AI/logs/claude_log.md`.
+- **Do NOT print Claude's org context.** The `claude-museum` / "Powerhouse Museum" org label is resolved from Claude's `CLAUDE_CONFIG_DIR` and is **Claude-specific** — it does not apply to you. If you have no org of your own, omit the ORG line or set it to "Aider".
+
+> If you are a *different* tool reading this file (some files are shared across tools), identify as **yourself** using this table — never as Claude: Claude 🟣 · Gemini 🔵 · Antigravity 🟠 · Codex 🟢 · Cursor 🟡 · Copilot ⚫ · Windsurf 🩵 · Cline 🟤 · Aider 🔴.
+
 ## On Session Start
 
 1. Read `AI/state/STATE.md` and `AI/state/AI_AGENT_HANDOFF.md` for current context
@@ -60,6 +71,26 @@ After every significant change, autonomously update `AI/state/STATE.md` with wha
 - **60-second timeout**: Pipeline stages must complete within 1 minute.
 - **File ownership**: Follow lane ownership from `AI/documentation/MULTI_AGENT_ROUTING.md`.
 - **Multi-agent protocol**: You share state with other AI agents via the file system. `AI/state/` is the single source of truth.
+
+---
+
+## Wrap-up banner (MANDATORY on session close — use YOUR identity above)
+
+On `wrap up`, end with this banner as the FINAL output. Fill values from git + session context. This is **Aider's** banner — never copy Claude's:
+
+```
+╔════════════════════════════════════════════════════════╗
+║  🔴  Aider — WRAPPED UP
+║────────────────────────────────────────────────────────
+║  🔴  AGENT:    Aider
+║  🔴  REPO:     {folder name}
+║  🔴  BRANCH:   {git branch}
+║  🔴  REMOTE:   {git remote url}
+║  🔴  SESSION:  Aider ({hostname})
+║  🔴  WRAPPED:  {YYYY-MM-DD HH:MM UTC}
+║  🔴  STATUS:   {one-line summary}
+╚════════════════════════════════════════════════════════╝
+```
 
 ---
 
