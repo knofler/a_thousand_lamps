@@ -1,88 +1,115 @@
 #!/usr/bin/env bash
-# 17-schedule-status.sh — Session-start SCHEDULE banner: what the autonomous
-# runner last did for THIS repo, what's queued next, and when the runner fires
-# again. Times shown in Australia/Sydney.
-#
-# Data sources (all best-effort; hook is silent on total failure):
-#   - gateway tasks_list (repo-scoped): last completed/reviewed task + next pending
-#   - ~/.ai-cli-runner/logs: last headless CLI session for this repo
-#   - launchd com.myai.cli-task-runner: standing runner presence + interval
-# bash 3.2-safe. Always exits 0.
+# 17-schedule-status.sh — Session-start SCHEDULE banner (the "resume" banner):
+# bold, boxed, with COLOR-CODED bullets — what the autonomous runner has DONE
+# for THIS repo (green ✓), what's SCHEDULED/queued next (cyan •), and what's
+# running NOW (yellow ▶) — plus the runner's real cadence + last session.
+# Times in Australia/Sydney. bash 3.2-safe. Always exits 0.
 set +e
 
 PORT="${MCP_PORT:-3100}"
 URL="http://localhost:${PORT}/mcp"
 RUNNER_LABEL="com.myai.cli-task-runner"
 RUNNER_LOGS="$HOME/.ai-cli-runner/logs"
+RUNNER_PLIST="$HOME/Library/LaunchAgents/${RUNNER_LABEL}.plist"
+
+# ── colors (disabled if NO_COLOR set) ───────────────────────
+if [ -n "$NO_COLOR" ]; then B='' R='' G='' C='' Y='' M='' D=''
+else B=$'\033[1m'; R=$'\033[0m'; G=$'\033[1;32m'; C=$'\033[1;36m'; Y=$'\033[1;33m'; M=$'\033[1;35m'; D=$'\033[2m'; fi
 
 # ── repo name (task-store convention) ───────────────────────
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 NAME=$(basename "$ROOT")
 PARENT=$(basename "$(dirname "$ROOT")")
-# task-store names that differ from folder basenames
 case "$PARENT/$NAME" in
     azureApp/api)    NAME="azureApp-api" ;;
     azureApp/app)    NAME="azureApp-app" ;;
     azureApp/docker) NAME="azureApp-docker" ;;
 esac
-# master repo folder is "AI" but has no tasks of its own — still show fleet line
 syd() { TZ=Australia/Sydney date -r "$1" "+%d %b %H:%M AEST" 2>/dev/null; }
 
-tasks=$(curl -sf -m 4 -X POST "$URL" -H 'content-type: application/json' \
-    -d "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"id\":1,\"params\":{\"name\":\"tasks_list\",\"arguments\":{\"repo\":\"$NAME\",\"limit\":100}}}" 2>/dev/null \
-    | /usr/bin/python3 -c '
-import sys, json
+# Body lines come back pre-colored from python (passes color codes in).
+body=$(curl -sf -m 4 -X POST "$URL" -H 'content-type: application/json' \
+    -d "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"id\":1,\"params\":{\"name\":\"tasks_list\",\"arguments\":{\"repo\":\"$NAME\",\"limit\":200}}}" 2>/dev/null \
+    | B="$B" R="$R" G="$G" C="$C" Y="$Y" M="$M" D="$D" /usr/bin/python3 -c '
+import sys, json, os
+from datetime import datetime, timezone, timedelta
+B=os.environ["B"]; R=os.environ["R"]; G=os.environ["G"]; C=os.environ["C"]; Y=os.environ["Y"]; M=os.environ["M"]; D=os.environ["D"]
 try:
     data = json.loads(json.load(sys.stdin)["result"]["content"][0]["text"])
 except Exception:
     sys.exit(0)
 ts = data.get("tasks", [])
-done = [t for t in ts if t["status"] in ("review", "done", "blocked") and t.get("updatedAt")]
+done = [t for t in ts if t["status"] in ("review","done","blocked") and t.get("updatedAt")]
 done.sort(key=lambda t: t["updatedAt"], reverse=True)
 pend = [t for t in ts if t["status"] == "pending"]
-order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
-pend.sort(key=lambda t: (0 if "quick win" in (t.get("notes") or "") else 1, order.get(t.get("priority"), 9)))
+order = {"P0":0,"P1":1,"P2":2,"P3":3}
+pend.sort(key=lambda t: (0 if "quick win" in (t.get("notes") or "") else 1, order.get(t.get("priority"),9)))
 working = [t for t in ts if t["status"] == "working"]
 
-def line(t, when=False):
-    from datetime import datetime, timezone, timedelta
-    out = "[%s] %s" % (t.get("priority", "?"), (t.get("title") or "")[:70])
-    if when and t.get("updatedAt"):
-        try:
-            dt = datetime.fromisoformat(t["updatedAt"].replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=10)))
-            out += dt.strftime(" — %d %b %H:%M AEST")
-        except Exception:
-            pass
-    return out
+def syd(iso):
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z","+00:00")).astimezone(timezone(timedelta(hours=10)))
+        return dt.strftime("%d %b %H:%M")
+    except Exception:
+        return ""
+def title(t, n=64):
+    return (t.get("title") or "")[:n]
 
-if working: print("NOW:  " + line(working[0]) + "  (agent working right now)")
-if done:    print("LAST: " + line(done[0], when=True) + "  -> " + done[0]["status"])
+out = []
+if working:
+    out.append("%s▶ NOW%s    %s%s%s  %s(agent working)%s" % (Y,R,B,title(working[0]),R,D,R))
+
+if done:
+    out.append("%s✓ DONE%s   %s(%d)%s" % (G,R,D,len(done),R))
+    for t in done[:4]:
+        st = t["status"]
+        out.append("   %s✓%s %s[%s]%s %s  %s%s · %s%s" % (G,R,D,t.get("priority","?"),R,title(t), D,syd(t.get("updatedAt","")),("→ "+st),R))
+
 if pend:
-    more = "  (+%d more queued)" % (len(pend) - 1) if len(pend) > 1 else ""
-    print("NEXT: " + line(pend[0]) + more)
-if not (working or done or pend): print("EMPTY")
+    out.append("%s• SCHEDULED%s %s(%d queued)%s" % (C,R,D,len(pend),R))
+    for t in pend[:6]:
+        qw = "%s⚡%s " % (Y,R) if "quick win" in (t.get("notes") or "") else "   "
+        out.append("%s%s•%s %s[%s]%s %s" % (qw,C,R,D,t.get("priority","?"),R,title(t)))
+    if len(pend) > 6:
+        out.append("   %s… +%d more queued%s" % (D,len(pend)-6,R))
+
+if not (working or done or pend):
+    out.append("EMPTY")
+print("\n".join(out))
 ' 2>/dev/null)
 
-[ -z "$tasks" ] && exit 0   # gateway down — stay silent
+[ -z "$body" ] && exit 0   # gateway down — stay silent
 
-# ── runner status ───────────────────────────────────────────
-runner_line="not installed on this machine"
+# ── runner cadence (read real interval from plist) + last session ──
+runner_line="${D}not installed on this machine${R}"
 if launchctl list "$RUNNER_LABEL" >/dev/null 2>&1; then
+    iv=$(/usr/bin/python3 -c "import re,sys;import plistlib;
+try:
+  d=plistlib.load(open('$RUNNER_PLIST','rb'));print(int(d.get('StartInterval',0))//3600)
+except Exception:
+  print(0)" 2>/dev/null)
+    [ -z "$iv" ] || [ "$iv" = "0" ] && every="" || every="every ${iv}h"
     last_log=$(ls -t "$RUNNER_LOGS" 2>/dev/null | head -1)
     if [ -n "$last_log" ]; then
         last_ts=$(stat -f %m "$RUNNER_LOGS/$last_log" 2>/dev/null)
-        runner_line="installed (every 5h) — last session: $(syd "$last_ts") (${last_log%%.log})"
+        runner_line="${G}active${R} ${D}${every} · last: $(syd "$last_ts")${R}"
     else
-        runner_line="installed (every 5h) — no sessions yet"
+        runner_line="${G}active${R} ${D}${every} · no sessions yet${R}"
     fi
 fi
 
-echo "╔═ SCHEDULE [$NAME] ═══════════════════════════════════════"
-if [ "$tasks" = "EMPTY" ]; then
-    echo "║ no tasks in the fleet queue for this repo"
+# ── render bold boxed banner ────────────────────────────────
+bar="══════════════════════════════════════════════════════════════"
+printf '%s\n' "${B}╔${bar}╗${R}"
+printf '%s\n' "${B}║  📅  SCHEDULE — ${M}${NAME}${R}${B}${R}"
+printf '%s\n' "${B}╠${bar}╣${R}"
+if [ "$body" = "EMPTY" ]; then
+    printf '%s\n' "  ${D}no tasks in the fleet queue for this repo — use 'schedule <desc>'${R}"
 else
-    echo "$tasks" | sed 's/^/║ /'
+    printf '%s\n' "$body" | sed 's/^/  /'
 fi
-echo "║ runner: $runner_line"
-echo "╚═══════════════════════════════════════════════════════════"
+printf '%s\n' "${B}╠${bar}╣${R}"
+printf '%s\n' "  ${B}runner:${R} $runner_line"
+printf '%s\n' "  ${D}dashboard: http://localhost:3210/schedule${R}"
+printf '%s\n' "${B}╚${bar}╝${R}"
 exit 0
