@@ -75,3 +75,16 @@ All AI agent workflows, architectural decisions, and state tracking live in the 
 - **Frontend:** Vercel (auto-deploy on push to `main`).
 - **API:** Render.com (triggered via deploy hook in GitHub Actions).
 - **Secrets:** Store all secrets as GitHub repository secrets and Vercel/Render environment variables. Never commit `.env`.
+
+## Admin token (`ADMIN_SECRET_TOKEN`)
+
+A single bearer token protects the entire admin panel (upload, embeds, post management). Auth fails closed — if `ADMIN_SECRET_TOKEN` is unset, all admin access is denied. Token checks are timing-safe, and `POST /api/auth` is rate-limited (10 attempts per IP per 15 minutes).
+
+**Generating / rotating the token (do this now if production still uses a dev value):**
+
+1. Generate a strong token: `openssl rand -hex 32`
+2. Update `ADMIN_SECRET_TOKEN` in Vercel → Project → Settings → Environment Variables (Production).
+3. Redeploy (Vercel → Deployments → Redeploy) so the new value takes effect.
+4. Update your local `.env` to match and log in to the admin panel with the new token.
+
+Rotate immediately if the token is ever exposed (committed, pasted in a log, shared insecurely).
