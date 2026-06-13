@@ -1,7 +1,23 @@
 # Project State: A Thousand Lamps
 
-**Timestamp:** 2026-03-03 — Session 003
-**Current Agent:** Claude (Sonnet 4.6)
+**Timestamp:** 2026-06-13 — Session 004 (scheduled, headless)
+**Current Agent:** Claude (security-specialist, fleet task)
+
+---
+
+## Session 004 — 2026-06-13 (headless security task)
+
+**Task:** [task-b83cff0b] Harden admin auth — timing-safe token check, fail-closed, rate limiting.
+**Commit:** `dc8c7d2` on `test` (pushed; not merged to main).
+
+- `lib/auth.ts` — token comparison now uses `crypto.timingSafeEqual` over SHA-256 digests; **fails closed** when `ADMIN_SECRET_TOKEN` is unset/empty; new `verifyAdminToken()` shared by header auth and the login endpoint.
+- `lib/rate-limit.ts` (new) — in-memory fixed-window limiter (per serverless instance; Upstash if ever needed).
+- `POST /api/auth` — rate-limited to 10 attempts per IP per 15 min (429 + `Retry-After`).
+- README "Admin token" section + `.env.example` — token generation (`openssl rand -hex 32`) and production rotation steps documented.
+- `tsconfig.json` — excluded `AI/` (pre-existing build break: template files import uninstalled packages).
+- Verified in Docker: tsc clean, lint clean, `next build` green, 14/14 smoke assertions on auth + rate limiting.
+
+**⚠️ Manual step still required:** production still runs `dev_secret_123` — rotate per README "Admin token" (Vercel env var + redeploy). Code can't fix the env var.
 
 ---
 
@@ -110,7 +126,7 @@ curl https://a-thousand-lamps.vercel.app/api/posts?limit=1
 | 11 | Facebook App ID configured | ❌ Not started |
 | 12 | Custom domain (athousandlamps.org) | ❌ Not started |
 | 13 | CI/CD GitHub Actions pipeline | ❌ Not configured (secrets missing) |
-| 14 | ADMIN_SECRET_TOKEN hardened | ❌ Still dev_secret_123 |
+| 14 | ADMIN_SECRET_TOKEN hardened | ⚠️ Code hardened on `test` (dc8c7d2); prod value still dev_secret_123 — rotate per README |
 | 15 | PostEditor component | ❌ Not built (planned in section 2) |
 
 ---

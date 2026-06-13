@@ -1,8 +1,22 @@
 # AI Agent Handoff: A Thousand Lamps
 
 > **Workspace root:** `/Users/rumman.ahmed/Dropbox/Dev/PROJECT/CODE/_MY_PROJECT/A_THOUSAND_LAMPS/`
-> **Last updated:** 2026-03-03 — Claude Session 003
+> **Last updated:** 2026-06-13 — Session 004 (headless security-specialist, fleet task)
 > **Handed off to:** Next agent
+> **Last machine:** Rummans-MacBook-Pro
+
+---
+
+## Latest Work (Session 004 — 2026-06-13)
+
+**Admin auth hardened** (task-b83cff0b, commit `dc8c7d2` on `test`, pushed, NOT merged to main):
+- `lib/auth.ts`: timing-safe comparison (`crypto.timingSafeEqual` over SHA-256 digests), fails closed if `ADMIN_SECRET_TOKEN` unset; new `verifyAdminToken()`.
+- `lib/rate-limit.ts` (new): in-memory fixed-window limiter; `POST /api/auth` now limited to 10 attempts/IP/15 min (429 + Retry-After).
+- README "Admin token" section: production token-rotation steps.
+- `tsconfig.json`: `AI/` excluded (pre-existing build break from template imports).
+- Verified in Docker: tsc, lint, `next build` all green; 14/14 smoke assertions.
+
+**Next steps:** (1) `ship it` to merge `test` → main; (2) **MANUAL — rotate prod token**: it is still `dev_secret_123`; generate with `openssl rand -hex 32`, set in Vercel env, redeploy (README "Admin token"). After rotation, update the admin token note below.
 
 ---
 
