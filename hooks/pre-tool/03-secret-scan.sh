@@ -49,7 +49,10 @@ if [[ "$CMD" == *"git commit"* ]]; then
   PAT_GH='ghp_[a-zA-Z0-9]{36}'
   PAT_GCP='AIza[a-zA-Z0-9_-]{35}'
   PAT_PEM='-----BEGIN [A-Z ]+KEY-----'
-  COMBINED="${PAT_AWS}|${PAT_OPENAI}|${PAT_GH}|${PAT_GCP}|${PAT_PEM}"
+  # myAI per-tenant API key (ADR-010 §3.6) — myai_live_/myai_test_ + base62 secret.
+  # Fragments concatenated so this source line cannot self-match.
+  PAT_MYAI="myai_(live|test)_[A-Za-z0-9]""{20,}"
+  COMBINED="${PAT_AWS}|${PAT_OPENAI}|${PAT_GH}|${PAT_GCP}|${PAT_PEM}|${PAT_MYAI}"
   SECRETS=$(git diff --cached -U0 2>/dev/null | grep -iE "$COMBINED" || true)
   [[ -n "$SECRETS" ]] && echo "BLOCKED: secrets detected in staged changes" && exit 2
 fi
