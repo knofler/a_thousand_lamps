@@ -253,6 +253,11 @@
             "type": "command",
             "command": "./hooks/session/17-schedule-status.sh",
             "timeout": 6000
+          },
+          {
+            "type": "command",
+            "command": "./hooks/session/18-machine-selfheal.sh",
+            "timeout": 8000
           }
         ]
       }
