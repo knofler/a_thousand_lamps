@@ -1,4 +1,10 @@
 {
+  "theme": "dark-daltonized",
+  "statusLine": {
+    "type": "command",
+    "command": "./AI/scripts/statusline.sh",
+    "padding": 0
+  },
   "skipDangerousModePermissionPrompt": true,
   "skipAutoPermissionPrompt": true,
   "permissions": {

@@ -151,3 +151,27 @@ an unsafe/expensive pattern spreading, a repeated mistake across sessions), the 
 4. Note the issue + the rule in `state/AI_AGENT_HANDOFF.md`.
 
 The rule is the durable fix; a one-off patch in a single repo is not. Rules propagate; patches rot.
+
+## 9. Distributable Framework — operator-agnostic & data-driven (MANDATORY)
+
+This framework is a **distributable product**: anyone can fork/clone it to manage **their own**
+repos. The clean separation that MUST always hold:
+
+* **The tool is generic.** ai_management's capabilities, dashboard UI, and the
+  **documentation/showcase** describe *what the framework does* — they ship identically to every
+  operator. The showcase explains "how this tool works + what it can do," not one operator's apps.
+* **The managed content is per-operator DATA.** Repos, plans, tasks, App-Directory cards,
+  10-day plans, schedules — all come from the operator's `config/managed_repos.txt` + the gateway
+  DB. They are whatever *that* operator manages.
+* **NEVER hardcode the current operator's repos** (agentFlow, connect, aircanteen, playground,
+  job-hunter, azure, …) into framework code, dashboard components, or shipped docs. Drive
+  everything from live config/DB. Any repo name in code/docs must be a clearly-labelled *example*,
+  never assumed present.
+* **Grand product framing:** agentflow (idea→app) and connect (helpdesk) are *capabilities/modules*
+  of the offering, but in a given install the operator's managed repos are their own — keep them
+  data-driven, not baked in.
+* Keep the **fork-init kit** (`scripts/init_fork.sh`, `clone-ready` branch) scrubbing
+  operator-specific state so a new install starts blank.
+
+When building ANY dashboard feature or doc: ask "would this still be correct for someone else
+managing a totally different set of repos?" If not, make it data-driven.
