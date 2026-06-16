@@ -129,8 +129,18 @@ routines, others ad-hoc `SCHEDULE.md` files) fragments the view and/or bills tok
   `AI/plan/schedule.json`, posts the 10-day plan via the gateway `plan_set` MCP tool
   (→ dashboard `/plan`), schedules tasks via `AI/scripts/schedule_task.sh`, then auto
   `ship it` + `wrap up -u`.
-* **The runner is the only executor** — the launchd `com.myai.cli-task-runner` (free Fable,
-  `claude-tech`, 0 API tokens) pulls tasks from the **gateway queue** by priority.
+* **The runner is the only executor** — the launchd `com.myai.cli-task-runner` (Opus 4.8,
+  `claude-tech`, subscription-billed / 0 API tokens) pulls tasks from the **gateway queue** by priority.
+* **The runner is PER-MACHINE — install it on every Mac that should drain the queue.** The queue is
+  shared (Atlas) but the runner is a *worker*: `launchd` is a local macOS facility (no central
+  scheduler) and it needs that Mac's Claude CLI + logged-in profile + Docker/gateway + checked-out
+  repos. So a new runner Mac is a deliberate one-time setup — `agent mode`'s self-heal **never
+  auto-installs** it (installing a headless agent that spends your Claude plan must be explicit).
+  Per Mac: `./scripts/setup_cli_runner_schedule.sh --every-minutes 10` (managed: `./AI/scripts/…`)
+  **and** `sudo pmset -c sleep 0` (launchd can't fire while asleep) + keep it plugged in, lid open.
+  **Self-surfacing reminder:** `scripts/machine_selfheal.sh` (runs at every session start via
+  `hooks/session/18-machine-selfheal.sh`) prints a **RUNNER REMINDER** on any Mac that has no runner
+  installed; silence a Mac that should never be a worker with `touch ~/.ai-cli-runner/.no-runner`.
 * **NEVER** create gateway cron schedules or Claude Code cloud routines for per-repo work.
 * **Off-hours only** — autonomous runs fire **weekdays 6pm–9am Sydney + all weekend**; never
   weekday 9am–6pm. Plan fire times auto-clamp into this band.
