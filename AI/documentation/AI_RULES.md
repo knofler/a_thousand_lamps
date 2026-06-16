@@ -146,6 +146,18 @@ routines, others ad-hoc `SCHEDULE.md` files) fragments the view and/or bills tok
   weekday 9am–6pm. Plan fire times auto-clamp into this band.
 * **Cross-device** — mobile/cloud sessions commit `AI/plan/schedule.json` to `main`; a CLI
   `agent mode -a` on any Mac ingests it into the runner via `AI/scripts/push_schedule.sh`.
+* **No-autonomous-schedule consent list (`config/schedule_ignore.txt`)** — some apps must
+  **NEVER** get autonomous scheduled work without the user's **clear, explicit consent**
+  (user directive 2026-06-13, expanded 2026-06-16: `phm-main`, `A_THOUSAND_LAMPS`,
+  `AstroviaAppCode`, `AstroVia-Docker`, `TELESCOPE`, `MEMBERSHIP`, `membership_app`).
+  Enforcement is layered: (a) the CLI runner **skips** any pending task whose repo is on the
+  list during its autonomous fleet picks; (b) `schedule plan` / `schedule_task.sh` /
+  `push_schedule.sh` **refuse to queue** work for these repos; (c) during `wrap up` /
+  `schedule plan` the agent **does NOT auto-submit a plan or top up the queue** for them — if a
+  plan IS submitted for one, **CHECK WITH THE USER FIRST**. A consented run always works:
+  `cli_task_runner.sh --repo <name> --force` (or `--task <id>`), or env `SCHEDULE_CONSENT=1`
+  for the queuing scripts — *manual = consent*. The list is propagated fleet-wide by
+  `update_all.sh`, so every repo's guards honor the same names.
 
 ## 8. Management-Issue → Distributed-Rule Protocol (master repo, MANDATORY)
 

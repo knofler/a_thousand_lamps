@@ -1,0 +1,26 @@
+# Repos EXCLUDED from autonomous scheduling — NO autonomous runner work without
+# the user's CLEAR, explicit consent (user directive 2026-06-13, expanded 2026-06-16).
+#
+# Effect:
+#   • The CLI task runner SKIPS any pending task whose repo is listed here on its
+#     autonomous (fleet) picks. A CONSENTED run still works: `cli_task_runner.sh
+#     --repo <name> --force` or `--task <id>` bypasses this list (manual = consent).
+#   • `schedule plan` / `schedule_task.sh` / `push_schedule.sh` REFUSE to queue work
+#     for these repos. Override for a single consented call: env SCHEDULE_CONSENT=1.
+#   • During `wrap up` / `schedule plan`, do NOT auto-submit a plan or top up the
+#     queue for these repos. If a plan IS submitted for one, CHECK WITH THE USER first.
+#
+# One repo name per line (task-store convention = git basename). '#' lines ignored.
+# The 5 protected apps → their gateway/task-store repo names:
+#   phm-main          → phm-main
+#   a thousand lamps  → A_THOUSAND_LAMPS
+#   astrovia (any)    → AstroviaAppCode, AstroVia-Docker
+#   telescope         → TELESCOPE  (+ its sub-repos AstroviaAppCode, AstroVia-Docker)
+#   membership        → MEMBERSHIP, membership_app
+phm-main
+A_THOUSAND_LAMPS
+AstroviaAppCode
+AstroVia-Docker
+TELESCOPE
+MEMBERSHIP
+membership_app

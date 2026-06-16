@@ -84,6 +84,18 @@ fi
 
 [ -n "$TITLE" ] || { echo "✗ --title is required" >&2; exit 2; }
 
+# Consent gate — repos on the no-autonomous-schedule list (config/schedule_ignore.txt)
+# must NOT be queued without the user's explicit consent (user directive 2026-06-16).
+# Override for a single consented call: SCHEDULE_CONSENT=1 ./schedule_task.sh ...
+IGNORE_FILE="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/config/schedule_ignore.txt"
+if [ "${SCHEDULE_CONSENT:-0}" != "1" ] && [ -f "$IGNORE_FILE" ] \
+   && grep -qxF "$REPO" <(grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$IGNORE_FILE"); then
+  echo "✗ '$REPO' is on the no-autonomous-schedule list (config/schedule_ignore.txt)." >&2
+  echo "  This app does NOT get scheduled work without your clear consent." >&2
+  echo "  To queue anyway (consented): SCHEDULE_CONSENT=1 $0 --title \"...\" ..." >&2
+  exit 3
+fi
+
 # Default model: free-window Fable until the window closes, else tier-default (empty).
 if [ -z "$MODEL" ]; then
   TODAY="$(date +%Y%m%d)"

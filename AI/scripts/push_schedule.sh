@@ -36,6 +36,17 @@ if ! curl -sf -o /dev/null "${GATEWAY_MCP%/mcp}/health" 2>/dev/null; then
     echo "✗ gateway not reachable at $GATEWAY_MCP — cannot push schedule (run on the gateway Mac)"; exit 0
 fi
 
+# Consent gate — skip repos on the no-autonomous-schedule list unless consented
+# (user directive 2026-06-16). Override: SCHEDULE_CONSENT=1 ./push_schedule.sh
+IGNORE_FILE="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/config/schedule_ignore.txt"
+ART_REPO="$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("repo",""))' "$ART" 2>/dev/null)"
+if [ "${SCHEDULE_CONSENT:-0}" != "1" ] && [ -f "$IGNORE_FILE" ] && [ -n "$ART_REPO" ] \
+   && grep -qxF "$ART_REPO" <(grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$IGNORE_FILE"); then
+  echo "↷ '$ART_REPO' is on the no-autonomous-schedule list — NOT ingesting plan/tasks."
+  echo "  This app needs your explicit consent. To ingest anyway: SCHEDULE_CONSENT=1 $0"
+  exit 0
+fi
+
 SCHED_SCRIPT="$(dirname "$0")/schedule_task.sh"
 GATEWAY_MCP="$GATEWAY_MCP" ART="$ART" SCHED="$SCHED_SCRIPT" /usr/bin/python3 - <<'PY'
 import json, os, subprocess, urllib.request
