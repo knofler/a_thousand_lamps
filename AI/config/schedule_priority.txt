@@ -1,0 +1,17 @@
+# CORE PRODUCT repos — the myAI sellable platform (user directive 2026-06-16).
+# Autonomous schedule-build PRIORITISES these over every other repo. The combined
+# product = ai_management (master / "AI") + agentFlow + connect, unified into one
+# sellable myAI platform (see plan/GRAND_PRODUCT_ROADMAP.md + memory grand-product-vision).
+#
+# Effect (enforced by scripts/reprioritize_queue.sh, run at session start + wrap up):
+#   • Tasks for these repos keep their assigned priority (P0/P1/P2).
+#   • Every OTHER repo's pending tasks are capped at P3 (bottom of the queue), so the
+#     runner always drains the core product before touching secondary apps.
+#   • "rubbish plans getting priority" (playground/JOB_HUNTER/AZURE/etc. P0s jumping
+#     ahead of the product) — this is what that fixes.
+#
+# One repo name per line (task-store convention = git basename). '#' lines ignored.
+AI
+ai_management
+agentFlow
+connect

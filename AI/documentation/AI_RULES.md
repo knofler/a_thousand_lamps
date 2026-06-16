@@ -146,6 +146,16 @@ routines, others ad-hoc `SCHEDULE.md` files) fragments the view and/or bills tok
   weekday 9am–6pm. Plan fire times auto-clamp into this band.
 * **Cross-device** — mobile/cloud sessions commit `AI/plan/schedule.json` to `main`; a CLI
   `agent mode -a` on any Mac ingests it into the runner via `AI/scripts/push_schedule.sh`.
+* **Core-product priority (`config/schedule_priority.txt`)** — the autonomous schedule
+  **builds the core myAI platform FIRST**: `AI`/`ai_management` (master) + `agentFlow` + `connect`,
+  the three repos that combine into the one sellable myAI product (`plan/GRAND_PRODUCT_ROADMAP.md`).
+  These repos' tasks keep their P0/P1/P2 priority; **every other repo's pending tasks are capped at
+  P3** so the runner never builds a secondary/sandbox app (playground, JOB_HUNTER, AZURE, etc.) ahead
+  of the product. Enforced by `scripts/reprioritize_queue.sh` — run it at `agent mode` start and in
+  `wrap up` (idempotent). This is the inverse of the consent list below: *priority* repos rise,
+  *ignored* repos are skipped. When generating `schedule plan` tasks, the core repos' plans are the
+  product plan and must be the source of P0 work; do not let per-repo polish for secondary apps
+  outrank the platform MVP.
 * **No-autonomous-schedule consent list (`config/schedule_ignore.txt`)** — some apps must
   **NEVER** get autonomous scheduled work without the user's **clear, explicit consent**
   (user directive 2026-06-13, expanded 2026-06-16: `phm-main`, `A_THOUSAND_LAMPS`,
