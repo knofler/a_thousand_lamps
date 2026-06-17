@@ -207,3 +207,22 @@ repos. The clean separation that MUST always hold:
 
 When building ANY dashboard feature or doc: ask "would this still be correct for someone else
 managing a totally different set of repos?" If not, make it data-driven.
+
+## 10. Multi-Tenant Scoping — tenantId on every scoped query (ADR-010 §3.4, MANDATORY)
+
+The gateway is row-level multi-tenant: one DB, a `tenantId` discriminator on the 8
+**customer-operational** collections (`Task`, `Schedule`, `PlanDay`, `RepoCard`, `Vector`,
+`GatewaySession`, `BudgetUsage`, `Notification`). A query on any of these that forgets `tenantId`
+is a **silent cross-tenant data leak**.
+
+* **Always route scoped reads/writes through `runtime/src/shared/scoped-query.ts`**
+  (`scopedFind`/`scopedFindOne`/`scopedUpdateOne`/`scopedDeleteOne`/`tenantScope`/`withTenant`) with a
+  server-derived `tenantId` from `getTenantScope(ctx)` — **never** from a caller-supplied arg/body.
+* **CI grep-gate (`scripts/local-ci.sh → check_tenant_scoping`)** flags any
+  `(Task|Schedule|PlanDay|RepoCard|Vector|GatewaySession|BudgetUsage|Notification)Model.(find|findOne|updateOne|deleteOne|aggregate)`
+  lacking nearby scope evidence → **CRITICAL block** (fails the run, blocks the merge). It runs on
+  every `local-ci.sh` invocation when `runtime/src` is present.
+* A **deliberate** cross-tenant system query (e.g. the scheduler's fleet-wide due-tick under
+  `SYSTEM_CONTEXT`) must carry a `// tenant-ok: <reason>` marker explaining why it spans tenants.
+* `tenancy.enforce` defaults **on** (`config.ts`); unresolved/non-loopback callers need a valid
+  tenant key or the `GATEWAY_LOCAL_TOKEN` bridge token. Roll back with `TENANT_ENFORCE=false`.

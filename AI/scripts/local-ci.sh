@@ -104,6 +104,10 @@ fi
 echo "Required contexts: ${CONTEXTS[*]}"
 echo
 
+# `overall` accumulates failures across every gate below (incl. the §3.4
+# tenant-scoping gate, which is invoked after its definition — see below).
+overall=0
+
 # ── Docker helper (Docker-only policy — no host npm) ────────────────────────
 run_node() {
   # run_node "<sh command>"  — runs in throwaway node container with repo mounted
@@ -177,13 +181,100 @@ check_build() {
   echo "    FAIL — build chain failed (ephemeral)"; return 1
 }
 
+# ── ADR-010 §3.4 tenant-scoping gate (distributed multi-tenancy rule) ────────
+# Flags any raw query on a SCOPED collection model that lacks a tenant filter —
+# a silent cross-tenant data-leak class. Row-level isolation (one DB, tenantId
+# discriminator) means a forgotten `tenantId` in a .find/.findOne/.updateOne/
+# .deleteOne/.aggregate is an isolation breach. The compile-time defenses
+# (mandatory tenantId store params + scoped-query helper) are primary; this gate
+# is the regression backstop in CI. CRITICAL — blocks the merge.
+#
+# Heuristic (grep gate, not a full static analyzer): for each hit, scan the
+# enclosing window (25 lines back, 8 forward) for evidence of tenant scoping
+# (tenantScope/withTenant/scoped*/getTenantScope/tenantId/SYSTEM_CONTEXT) or an
+# explicit `tenant-ok:` exemption marker. A deliberate cross-tenant system sweep
+# must carry a `tenant-ok:` comment (or document its intent with `tenantId` in
+# the adjacent doc-comment). No-op in repos without the gateway runtime.
+check_tenant_scoping() {
+  echo "  [Tenant Scoping] ADR-010 §3.4 — scoped-model queries must carry tenantId"
+  local src="$REPO_ROOT/runtime/src"
+  if [ ! -d "$src" ]; then
+    echo "    SKIP — no runtime/src (not the gateway repo)"; return 2
+  fi
+  local report; report="$(SRC_DIR="$src" python3 - <<'PY'
+import os, re, sys
+src = os.environ["SRC_DIR"]
+# Scoped collection models per ADR-010 §1.1 + the §3.4 verb set.
+MODELS = r"(TaskModel|ScheduleModel|PlanDayModel|RepoCardModel|VectorModel|GatewaySessionModel|BudgetUsageModel|NotificationModel)"
+VERBS  = r"(find|findOne|updateOne|deleteOne|aggregate)"
+HIT    = re.compile(MODELS + r"\." + VERBS + r"\b")
+# Evidence that the query is tenant-scoped (or a sanctioned exemption).
+EXEMPT = re.compile(
+    r"tenant-ok|tenantScope|withTenant|scopedFind|scopedFindOne|scopedUpdateOne|"
+    r"scopedDeleteOne|getTenantScope|tenantId|SYSTEM_CONTEXT|DEFAULT_TENANT_ID"
+)
+BACK, FWD = 25, 8
+violations = []
+for root, _dirs, files in os.walk(src):
+    for fn in files:
+        if not fn.endswith(".ts"):
+            continue
+        if fn.endswith((".test.ts", ".spec.ts")) or os.sep + "tests" + os.sep in root + os.sep:
+            continue
+        # The helper + model definitions legitimately reference the models raw.
+        if fn in ("scoped-query.ts", "db.ts"):
+            continue
+        path = os.path.join(root, fn)
+        try:
+            lines = open(path, encoding="utf-8").read().splitlines()
+        except Exception:
+            continue
+        for i, line in enumerate(lines):
+            if not HIT.search(line):
+                continue
+            lo, hi = max(0, i - BACK), min(len(lines), i + FWD + 1)
+            window = "\n".join(lines[lo:hi])
+            if EXEMPT.search(window):
+                continue
+            rel = os.path.relpath(path, src)
+            violations.append(f"runtime/src/{rel}:{i+1}: {line.strip()}")
+if violations:
+    print("VIOLATIONS")
+    for v in violations:
+        print(v)
+PY
+)" || { echo "    SKIP — python3 unavailable for scan"; return 2; }
+
+  if printf '%s' "$report" | grep -q '^VIOLATIONS$'; then
+    echo "    FAIL — unscoped query on a tenant-scoped collection (cross-tenant leak risk):"
+    printf '%s\n' "$report" | grep -v '^VIOLATIONS$' | sed 's/^/      ✗ /'
+    echo "    FIX — route through scoped-query.ts (scopedFind/scopedUpdateOne/…) or add"
+    echo "          { ...tenantScope(tenantId) } to the filter. A deliberate cross-tenant"
+    echo "          system query must carry a '// tenant-ok: <reason>' marker."
+    return 1
+  fi
+  echo "    PASS — all scoped-model queries carry a tenant filter or sanctioned exemption"
+  return 0
+}
+
+# ── ADR-010 §3.4 tenant-scoping gate (invoked here, after its definition) ────
+# CRITICAL distributed-rule block (documentation/AI_RULES.md): a violation must
+# prevent a green run regardless of branch-protection contexts. A failure flips
+# `overall`, so the "Ready to Merge" aggregator below reports failure and the
+# script exits non-zero — no success status is posted. (Must follow the function
+# definition above; bash resolves calls at runtime but the name must be defined.)
+check_tenant_scoping; ts_rc=$?
+if [ "$ts_rc" -eq 1 ]; then overall=1; fi
+echo
+
 # ── Run required checks (Ready to Merge is an aggregator — evaluate last) ────
 # bash-3.2 safe: no associative arrays. Results stored as "state<TAB>context"
 # lines; set_result/get_result read/write that string.
 RESULTS=""
 set_result() { RESULTS="${RESULTS}${2}"$'\t'"${1}"$'\n'; }   # set_result <ctx> <state>
 get_result() { printf '%s' "$RESULTS" | awk -F'\t' -v c="$1" '$2==c{print $1; exit}'; }
-overall=0
+# NB: do NOT reset `overall` here — the tenant-scoping gate above may already
+# have set it to 1, and that CRITICAL block must survive into "Ready to Merge".
 HAS_READY=0
 
 for ctx in "${CONTEXTS[@]}"; do
