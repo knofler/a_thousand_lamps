@@ -2,5 +2,13 @@
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "framework": "nextjs",
-  "regions": ["sin1"]
+  "regions": [
+    "sin1"
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "test": false
+    }
+  }
 }
