@@ -226,3 +226,30 @@ is a **silent cross-tenant data leak**.
   `SYSTEM_CONTEXT`) must carry a `// tenant-ok: <reason>` marker explaining why it spans tenants.
 * `tenancy.enforce` defaults **on** (`config.ts`); unresolved/non-loopback callers need a valid
   tenant key or the `GATEWAY_LOCAL_TOKEN` bridge token. Roll back with `TENANT_ENFORCE=false`.
+
+## 11. Vercel Deploy Gate — build ONLY on main, fleet-wide (MANDATORY)
+
+Vercel's free/Hobby plan caps deployments at **100/day account-wide (across ALL projects)**.
+Un-gated, Vercel deploys a Preview on **every push to every branch**; summed across the fleet that
+blows the cap and then blocks **production** too. So **every repo MUST build only on `main`** —
+working-branch pushes (`test`/`codeclot`/feature) must produce **zero** deployments.
+
+* **The gate** (`vercel.json`, scaffolded from `templates/vercel.json`):
+  `git.deploymentEnabled: {main:true, test:false, codeclot:false}` (no deployment record created on
+  the working branches) **+** an `ignoreCommand` that builds only when `VERCEL_GIT_COMMIT_REF == main`
+  (the catch-all that stops a push on *any* other branch — so a repo can't go rogue on a feature
+  branch). Never clobber a repo's own `ignoreCommand`; merge the branch gate instead.
+* **New repos are born gated** — `templates/vercel.json` carries it; `init_blueprint.sh` /
+  `rollout_ci_thrift.sh gate_vercel()` **create** it when missing (do NOT only edit existing files).
+* **Enforcement:** `hooks/session/19-vercel-gate-guard.sh` runs every session (master repo) and warns
+  loudly if any managed repo lacks the build-only-main gate → "rogue deployer". Fix the whole fleet
+  with `./scripts/rollout_ci_thrift.sh --apply` (then commit + push each — the gating push is itself
+  skipped by Vercel, costing zero quota).
+* **Batch releases** (`scripts/deploy_status.sh`): commit freely to `test` (0 builds), `ship it` only
+  every 3–4 changes → ~1 production build per release. Real fleet need is single-digit builds/day,
+  nowhere near 100.
+* **Airtight cap lever (operator, dashboard):** for projects that must never preview, also set
+  *Production Branch = main* + disable Preview Deployments in the Vercel project settings. `vercel.json`
+  is the config-side guard; the dashboard setting is belt-and-suspenders.
+* **Do NOT buy Vercel Pro to escape the cap** — the gate makes it irrelevant. Pro only for genuine
+  >60s functions / production-scale needs.
