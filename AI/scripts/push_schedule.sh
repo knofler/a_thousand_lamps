@@ -18,6 +18,7 @@
 # Env: GATEWAY_MCP (default http://localhost:3100/mcp)
 set -euo pipefail
 GATEWAY_MCP=${GATEWAY_MCP:-http://localhost:3100/mcp}
+. "$(dirname "$0")/lib/gateway.sh" 2>/dev/null || GATEWAY_LOCAL_TOKEN="${GATEWAY_LOCAL_TOKEN:-myai-local-bridge-dev}"
 FORCE=false; [ "${1:-}" = "--force" ] && FORCE=true
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
@@ -48,14 +49,14 @@ if [ "${SCHEDULE_CONSENT:-0}" != "1" ] && [ -f "$IGNORE_FILE" ] && [ -n "$ART_RE
 fi
 
 SCHED_SCRIPT="$(dirname "$0")/schedule_task.sh"
-GATEWAY_MCP="$GATEWAY_MCP" ART="$ART" SCHED="$SCHED_SCRIPT" /usr/bin/python3 - <<'PY'
+GATEWAY_MCP="$GATEWAY_MCP" ART="$ART" SCHED="$SCHED_SCRIPT" GW_TOKEN="$GATEWAY_LOCAL_TOKEN" /usr/bin/python3 - <<'PY'
 import json, os, subprocess, urllib.request
-MCP=os.environ["GATEWAY_MCP"]; art=os.environ["ART"]; sched=os.environ["SCHED"]
+MCP=os.environ["GATEWAY_MCP"]; art=os.environ["ART"]; sched=os.environ["SCHED"]; GW_TOKEN=os.environ.get("GW_TOKEN","")
 d=json.load(open(art))
 repo=d["repo"]
 def call(n,a):
     b=json.dumps({"jsonrpc":"2.0","method":"tools/call","id":1,"params":{"name":n,"arguments":a}}).encode()
-    return urllib.request.urlopen(urllib.request.Request(MCP,data=b,headers={"content-type":"application/json"}),timeout=30).read()
+    return urllib.request.urlopen(urllib.request.Request(MCP,data=b,headers={"content-type":"application/json","x-gateway-local-token":GW_TOKEN}),timeout=30).read()
 # 1) plan_set (dashboard /plan view)
 if d.get("days"):
     call("plan_set",{"repo":repo,"startDate":d.get("startDate"),"replace":True,"days":d["days"]})

@@ -23,6 +23,7 @@
 set -euo pipefail
 
 GATEWAY_MCP=${GATEWAY_MCP:-http://localhost:3100/mcp}
+. "$(dirname "$0")/lib/gateway.sh" 2>/dev/null || GATEWAY_LOCAL_TOKEN="${GATEWAY_LOCAL_TOKEN:-myai-local-bridge-dev}"
 
 NAME=""; DESC=""; GROUP=""; LOCAL=""; APP=""; API=""; MONGO=""; VERCEL=""; DNS=""; STATUS=""; LEVEL=""; BY=""
 while [ $# -gt 0 ]; do
@@ -105,6 +106,7 @@ PY
 )
 
 RESULT=$(curl -sf -X POST "$GATEWAY_MCP" -H 'content-type: application/json' \
+  -H "x-gateway-local-token: $GATEWAY_LOCAL_TOKEN" \
   -d "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"id\":1,\"params\":{\"name\":\"repos_card_upsert\",\"arguments\":$ARGS}}")
 echo "$RESULT" | python3 -c "
 import sys,json

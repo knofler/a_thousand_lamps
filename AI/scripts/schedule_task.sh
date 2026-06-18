@@ -24,6 +24,8 @@
 set -euo pipefail
 
 GATEWAY_MCP=${GATEWAY_MCP:-http://localhost:3100/mcp}
+# Local-token escape hatch — gateway enforces auth (ADR-010 M1); host calls aren't loopback.
+. "$(dirname "$0")/lib/gateway.sh" 2>/dev/null || GATEWAY_LOCAL_TOKEN="${GATEWAY_LOCAL_TOKEN:-myai-local-bridge-dev}"
 DASH=${DASH_URL:-http://localhost:3210}
 FABLE_FREE_UNTIL=${FABLE_FREE_UNTIL:-20260622}
 
@@ -62,6 +64,7 @@ fi
 
 mcp_call() { # $1 tool, $2 args-json
   curl -sf -X POST "$GATEWAY_MCP" -H 'content-type: application/json' \
+    -H "x-gateway-local-token: $GATEWAY_LOCAL_TOKEN" \
     -d "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"id\":1,\"params\":{\"name\":\"$1\",\"arguments\":$2}}"
 }
 
