@@ -279,3 +279,21 @@ waste. **No machine may sync `node_modules` to Dropbox. Build artifacts ride the
   `find ~/Dropbox/Dev -type d -name node_modules -prune -exec rm -rf {} +`.
 * **Also reduce Dropbox load:** lower its CPU priority so it yields to active apps —
   `for p in $(pgrep -i dropbox); do renice 20 "$p"; done`.
+
+### 12a. `.dockerignore` — node_modules is the FIRST provisioning condition (MANDATORY)
+
+Every repo — **current and future** — must carry a `.dockerignore` whose **first entry is `node_modules`**.
+Host `node_modules` must never enter the Docker build context: it bloats/poisons the image (wrong-arch
+binaries, stale deps), balloons build time, and (under Dropbox) is the churn source §12 eliminates. Deps
+install **inside** the image; the compose dev pattern masks the host dir with an anonymous volume
+(`- .:/app` + `- /app/node_modules`) so containers use the image's modules.
+
+* **Canonical template:** `templates/.dockerignore` (node_modules first, then build artifacts, VCS, env).
+* **Provisioning (future repos):**
+  * `init_blueprint.sh` step 2a **guarantees** a compliant `.dockerignore` (copies the template; writes a
+    minimal one if absent) — runs before the AI-framework refresh, so it's a first-class scaffold condition.
+  * `init_ai.sh` copies the master `.dockerignore` into every bootstrapped project.
+  * `templates/.dockerignore` propagates fleet-wide via `update_all.sh` → new scaffolds are born compliant.
+* **Enforcement (current repos):** `health_check.sh` verifies `.dockerignore` exists **and contains
+  `node_modules`** for every Docker repo — warns "MISSING node_modules (AI_RULES §12)" otherwise.
+* **Disk:** host `node_modules` shouldn't exist at all (Docker-only; `05-no-local-npm.sh` blocks host npm).
