@@ -253,3 +253,29 @@ working-branch pushes (`test`/`codeclot`/feature) must produce **zero** deployme
   is the config-side guard; the dashboard setting is belt-and-suspenders.
 * **Do NOT buy Vercel Pro to escape the cap** — the gate makes it irrelevant. Pro only for genuine
   >60s functions / production-scale needs.
+
+## 12. Dropbox — never sync node_modules / build artifacts (fleet-wide, MANDATORY)
+
+Many machines keep the dev workspace **inside Dropbox**. Dropbox then tries to index and sync every
+`node_modules` (tens of thousands of churning files per repo), build output, and cache dir — pegging
+CPU + RAM and making the Mac unusable. These dirs are **regenerable** (reinstalled / rebuilt per
+machine — the framework is Docker-based) and are **never version-controlled**, so syncing them is pure
+waste. **No machine may sync `node_modules` to Dropbox. Build artifacts ride the same rule.**
+
+* **Mechanism:** Dropbox's official per-folder ignore flag — extended attribute
+  `com.dropbox.ignored=1`. The folder stays on local disk; Dropbox stops indexing/syncing it.
+  Reversible: `xattr -d com.dropbox.ignored <dir>`.
+* **Covered dirs:** `node_modules` (mandated) + `.next`, `dist`, `build`, `coverage`, `.turbo`,
+  `.parcel-cache`, `.nuxt`, `.svelte-kit` (same class of regenerable junk).
+* **Enforcement:**
+  * `scripts/dropbox_ignore_artifacts.sh` — idempotent; marks artifact dirs ignored. `--all` sweeps
+    the entire Dropbox root (manual fleet sweep); no-arg scopes to the current repo (fast). macOS +
+    Dropbox only; silent no-op elsewhere (Linux/cloud/container).
+  * `hooks/session/20-dropbox-ignore.sh` — runs every session (`--quiet`), re-ignoring any artifact
+    dir that reappeared (e.g. after an `npm install`) in the current repo. Registered in
+    `.claude/settings.json`. Propagated fleet-wide via `update_all.sh` → enforced on **every machine**.
+* **Disk hygiene:** host `node_modules` shouldn't normally exist anyway — `hooks/pre-tool/05-no-local-npm.sh`
+  blocks host npm (Docker-only). Stale ones can be deleted outright (regenerable):
+  `find ~/Dropbox/Dev -type d -name node_modules -prune -exec rm -rf {} +`.
+* **Also reduce Dropbox load:** lower its CPU priority so it yields to active apps —
+  `for p in $(pgrep -i dropbox); do renice 20 "$p"; done`.

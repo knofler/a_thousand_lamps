@@ -263,6 +263,11 @@
             "type": "command",
             "command": "./hooks/session/19-vercel-gate-guard.sh",
             "timeout": 8000
+          },
+          {
+            "type": "command",
+            "command": "./hooks/session/20-dropbox-ignore.sh",
+            "timeout": 8000
           }
         ]
       }
