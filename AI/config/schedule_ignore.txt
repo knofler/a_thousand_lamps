@@ -24,3 +24,4 @@ AstroVia-Docker
 TELESCOPE
 MEMBERSHIP
 membership_app
+aircanteen
