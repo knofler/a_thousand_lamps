@@ -263,7 +263,11 @@ PY
 # `overall`, so the "Ready to Merge" aggregator below reports failure and the
 # script exits non-zero — no success status is posted. (Must follow the function
 # definition above; bash resolves calls at runtime but the name must be defined.)
-check_tenant_scoping; ts_rc=$?
+# NB: set -e-safe — check_tenant_scoping returns 2 on SKIP (non-gateway repos
+# with no runtime/src) and 1 on FAIL; a bare `check_tenant_scoping; ts_rc=$?`
+# would let `set -e` abort the whole script before $? is captured, so the gate
+# (and ALL downstream checks) silently never run in every non-gateway repo.
+ts_rc=0; check_tenant_scoping || ts_rc=$?
 if [ "$ts_rc" -eq 1 ]; then overall=1; fi
 echo
 
