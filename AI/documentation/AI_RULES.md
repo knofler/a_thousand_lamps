@@ -141,6 +141,19 @@ routines, others ad-hoc `SCHEDULE.md` files) fragments the view and/or bills tok
   **Self-surfacing reminder:** `scripts/machine_selfheal.sh` (runs at every session start via
   `hooks/session/18-machine-selfheal.sh`) prints a **RUNNER REMINDER** on any Mac that has no runner
   installed; silence a Mac that should never be a worker with `touch ~/.ai-cli-runner/.no-runner`.
+* **Reconcile phantom `review` tasks — the board must self-heal (`scripts/reconcile_review_tasks.sh`).**
+  The runner works a task on `test` → flips it to `review`, but **never ships to main and never flips
+  `review→done`**. Once that work lands on `main` (via `ship it`/`/fleet`, or because it was already
+  there), the gateway task is stuck in `review` forever and the queue inflates with already-shipped
+  **phantoms** — so every `/fleet` morning console wastes time re-triaging stale entries (on
+  2026-06-22, **~38 of 44** "backlog" tasks were phantom). The fix: `reconcile_review_tasks.sh`
+  compares each repo's `origin/test` against `origin/main`; **if `test` has 0 commits ahead, every one
+  of that repo's `review` tasks is provably shipped → flip to `done`**; if `test` is ahead, genuine
+  unshipped work remains → leave for review; indeterminate repos (no git / missing `main`|`test`) are
+  skipped untouched. It is **fail-safe** — it only flips when it can prove nothing is unshipped, and it
+  NEVER ships/merges/touches git. Wired in automatically: the **CLI runner** runs it (throttled ≤1/hr)
+  each fire, **`/fleet`** runs it before computing the morning table, and it runs at `agent mode` start
+  + `wrap up`. Run standalone any time: `./scripts/reconcile_review_tasks.sh [--dry-run] [--repo X]`.
 * **NEVER** create gateway cron schedules or Claude Code cloud routines for per-repo work.
 * **Off-hours only** — autonomous runs fire **weekdays 6pm–9am Sydney + all weekend**; never
   weekday 9am–6pm. Plan fire times auto-clamp into this band.
