@@ -154,6 +154,17 @@ routines, others ad-hoc `SCHEDULE.md` files) fragments the view and/or bills tok
   NEVER ships/merges/touches git. Wired in automatically: the **CLI runner** runs it (throttled ≤1/hr)
   each fire, **`/fleet`** runs it before computing the morning table, and it runs at `agent mode` start
   + `wrap up`. Run standalone any time: `./scripts/reconcile_review_tasks.sh [--dry-run] [--repo X]`.
+* **The runner must be robust to a poison task — never let one bad task starve the queue.**
+  The launchd runner picks tasks from the queue head by priority. A single task whose repo can't be
+  resolved to a **buildable git checkout** (e.g. a misfiled `content_api` task pointing at the
+  `POWERHOUSE/CONTENT_API` *workspace* dir, which has no `.git`) must **NOT** abort the fire. The
+  runner loops candidates and, on an unresolvable one, **marks it `blocked`** (with a re-point/discard
+  note) and moves to the next — so a poison item leaves `pending` and can never head-of-line-block the
+  whole queue. This is the structural fix for the recurring `RUNNER-QUEUE-STARVED` class (3 incidents:
+  MEMBERSHIP no-remote, the `set -e` remote death, and the `exit 1`-on-unresolvable-path block fixed
+  2026-06-23). Resolution must verify the path is *actually a git repo* (`.git` present), not merely
+  that a registry lookup returned a non-empty string. If "no schedule events are running for ANY repo,"
+  check `~/.ai-cli-runner/runner.out` first — a repeating per-fire ERROR on the same task is this bug.
 * **NEVER** create gateway cron schedules or Claude Code cloud routines for per-repo work.
 * **Off-hours only** — autonomous runs fire **weekdays 6pm–9am Sydney + all weekend**; never
   weekday 9am–6pm. Plan fire times auto-clamp into this band.
