@@ -147,11 +147,17 @@ routines, others ad-hoc `SCHEDULE.md` files) fragments the view and/or bills tok
   there), the gateway task is stuck in `review` forever and the queue inflates with already-shipped
   **phantoms** — so every `/fleet` morning console wastes time re-triaging stale entries (on
   2026-06-22, **~38 of 44** "backlog" tasks were phantom). The fix: `reconcile_review_tasks.sh`
-  compares each repo's `origin/test` against `origin/main`; **if `test` has 0 commits ahead, every one
-  of that repo's `review` tasks is provably shipped → flip to `done`**; if `test` is ahead, genuine
-  unshipped work remains → leave for review; indeterminate repos (no git / missing `main`|`test`) are
-  skipped untouched. It is **fail-safe** — it only flips when it can prove nothing is unshipped, and it
-  NEVER ships/merges/touches git. Wired in automatically: the **CLI runner** runs it (throttled ≤1/hr)
+  reconciles in two stages. **(1) Whole-repo fast path:** compare each repo's `origin/test` against
+  `origin/main`; **if `test` has 0 commits ahead, every one of that repo's `review` tasks is provably
+  shipped → flip to `done`**. **(2) Per-task ancestor check:** when `test` IS ahead, the repo still has
+  *some* unshipped work — but `cli_task_runner.sh` stamps the commit SHA(s) each session pushed onto the
+  task notes (`[pushed-shas] {...,"commits":[...]}`), so for each task we check whether **every** stamped
+  commit is an ancestor of `origin/main` (`git merge-base --is-ancestor`); if so, that single task's work
+  is provably shipped → flip just it to `done`, even though other tasks remain unshipped on `test`. Tasks
+  with no stamped SHA (or whose SHAs aren't on main yet — e.g. squash/rebase merges produce new SHAs) are
+  left for review. Indeterminate repos (no git / missing `main`|`test`) are skipped untouched. It is
+  **fail-safe** — it only flips when it can prove the work is on main (whole-repo test==main, or each
+  task's exact commits), and it NEVER ships/merges/touches git. Wired in automatically: the **CLI runner** runs it (throttled ≤1/hr)
   each fire, **`/fleet`** runs it before computing the morning table, and it runs at `agent mode` start
   + `wrap up`. Run standalone any time: `./scripts/reconcile_review_tasks.sh [--dry-run] [--repo X]`.
 * **The runner must be robust to a poison task — never let one bad task starve the queue.**
