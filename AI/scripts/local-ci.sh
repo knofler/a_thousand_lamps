@@ -289,7 +289,13 @@ for ctx in "${CONTEXTS[@]}"; do
     "Security Audit")
       if check_security_audit; then set_result "$ctx" pass; else set_result "$ctx" fail; overall=1; fi ;;
     "build")
-      check_build; rc=$?
+      # set -e-safe: check_build returns 2 on SKIP (no package.json / no
+      # build scripts) and 1 on FAIL. A bare `check_build; rc=$?` lets
+      # `set -euo pipefail` abort the whole script before $? is captured —
+      # the same class of bug as the tenant gate above (PR #256). Invisible
+      # at the master (it HAS package.json → build returns 0) but it killed
+      # local-ci on any repo whose build SKIPs. Caught by fleet_smoke.sh.
+      rc=0; check_build || rc=$?
       if [ $rc -eq 0 ]; then set_result "$ctx" pass
       elif [ $rc -eq 2 ]; then set_result "$ctx" skip
       else set_result "$ctx" fail; overall=1; fi ;;
