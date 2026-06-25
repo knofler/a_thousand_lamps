@@ -115,12 +115,26 @@ run_node() {
   docker run --rm -v "$REPO_ROOT":/app -w /app "$NODE_IMAGE" sh -lc "$1"
 }
 
-# Find a running container for this repo (preferred for build/test: it has the
-# right env, mongo sidecar, etc.). Returns container name on stdout or empty.
-repo_container() {
+# Find this repo's running DB sidecar (mongo/postgres/mysql) so DB-backed build/
+# test steps can reach it via a shared network namespace. Returns name or empty.
+repo_db_sidecar() {
   local base; base="$(basename "$REPO_ROOT" | tr '[:upper:]' '[:lower:]')"
   docker ps --format '{{.Names}}' 2>/dev/null \
-    | grep -iE "^${base}[-_].*(app|gateway|web|api)?" | head -1 || true
+    | grep -iE "^${base}[-_].*(mongo|db|postgres|mysql|redis)" | head -1 || true
+}
+
+# Detect a devDeps-bearing build stage in the repo's Dockerfile. Production
+# standalone runner images strip devDeps (no `next`/`tsc`/`vitest`), so we build
+# the *builder* stage instead — it has the full toolchain. Stage name varies
+# across blueprints: builder | build | dev. Echoes the stage name or empty.
+repo_build_stage() {
+  [ -f "$REPO_ROOT/Dockerfile" ] || return 0
+  local st
+  for st in builder build dev; do
+    if grep -iqE "AS[[:space:]]+${st}([[:space:]]|$)" "$REPO_ROOT/Dockerfile"; then
+      echo "$st"; return 0
+    fi
+  done
 }
 
 # ── Check runners — each prints detail, returns 0 pass / non-0 fail ─────────
@@ -165,18 +179,56 @@ check_build() {
     fi
   done
   [ -n "$steps" ] || { echo "    SKIP — no lint/typecheck/build/test scripts"; return 2; }
+  command -v docker >/dev/null 2>&1 || { echo "    docker unavailable"; return 3; }
 
-  local ctr; ctr="$(repo_container)"
-  if [ -n "$ctr" ]; then
-    echo "    running in container '$ctr': $steps"
-    if docker exec "$ctr" sh -lc "$steps"; then
-      echo "    PASS — build chain green in repo container"; return 0
-    fi
-    echo "    FAIL — build chain failed in repo container"; return 1
+  # DB sidecar → share its network namespace so DB-backed build/test reach it.
+  local netarg="" dbctr
+  dbctr="$(repo_db_sidecar)"
+  if [ -n "$dbctr" ]; then
+    netarg="--network container:$dbctr"
+    echo "    DB sidecar '$dbctr' detected — sharing its network for DB-backed steps"
   fi
-  echo "    no repo container running; ephemeral $NODE_IMAGE: npm ci && $steps"
-  if run_node "npm ci && $steps"; then
-    echo "    PASS — build chain green (ephemeral)"; return 0
+  local dbenv="-e MONGODB_URI=${MONGODB_URI:-mongodb://localhost:27017/localci} -e CI=1"
+
+  # ── Production-faithful path: build the Dockerfile's *builder* stage ──────
+  # NEVER `docker exec` into the running container — it's a production STANDALONE
+  # image (devDeps stripped → `next: not found`), the silent verify gap that
+  # stalled the whole fleet's review backlog (can't verify → can't ship). The
+  # builder stage carries the full toolchain and builds in an isolated layer (no
+  # host node_modules/.next pollution). Build verifies the BUILD; we then run the
+  # remaining gates (lint/typecheck/test) inside that built image.
+  local stage; stage="$(repo_build_stage)"
+  if [ -n "$stage" ]; then
+    local base img; base="$(basename "$REPO_ROOT" | tr '[:upper:]' '[:lower:]')"
+    img="localci-verify-${base}:latest"
+    echo "    production-faithful build — docker build --target $stage ($img)"
+    if ! DOCKER_BUILDKIT=1 docker build --target "$stage" -t "$img" "$REPO_ROOT"; then
+      echo "    FAIL — builder-stage image build failed (real npm ci + npm run build)"; return 1
+    fi
+    # Remaining gates that the image build didn't already cover (build ran in the
+    # docker build above). Run them in the built image (devDeps + source present).
+    local gates="" g
+    for g in lint typecheck test; do
+      if python3 -c "import json,sys; sys.exit(0 if '$g' in json.load(open('package.json')).get('scripts',{}) else 1)" 2>/dev/null; then
+        gates="${gates}${gates:+ && }npm run $g"
+      fi
+    done
+    if [ -z "$gates" ]; then
+      echo "    PASS — build chain green (builder stage; no lint/typecheck/test scripts to add)"; return 0
+    fi
+    echo "    running gates in built image: $gates"
+    # shellcheck disable=SC2086
+    if docker run --rm $netarg $dbenv -w /app "$img" sh -lc "$gates"; then
+      echo "    PASS — build chain green (production-faithful: builder image + $gates)"; return 0
+    fi
+    echo "    FAIL — lint/typecheck/test failed in builder image"; return 1
+  fi
+
+  # ── Fallback: no Dockerfile builder stage → ephemeral node image w/ devDeps ──
+  echo "    no builder stage; ephemeral $NODE_IMAGE (npm ci + devDeps): $steps"
+  # shellcheck disable=SC2086
+  if docker run --rm $netarg $dbenv -v "$REPO_ROOT":/app -w /app "$NODE_IMAGE" sh -lc "npm ci && $steps"; then
+    echo "    PASS — build chain green (ephemeral, production-faithful)"; return 0
   fi
   echo "    FAIL — build chain failed (ephemeral)"; return 1
 }
