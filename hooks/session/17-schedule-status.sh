@@ -14,7 +14,7 @@ RUNNER_PLIST="$HOME/Library/LaunchAgents/${RUNNER_LABEL}.plist"
 
 # ── colors (disabled if NO_COLOR set) ───────────────────────
 if [ -n "$NO_COLOR" ]; then B='' R='' G='' C='' Y='' M='' D=''
-else B=$'\033[1m'; R=$'\033[0m'; G=$'\033[1;32m'; C=$'\033[1;36m'; Y=$'\033[1;33m'; M=$'\033[1;35m'; D=$'\033[2m'; fi
+else B=$'\033[1m'; R=$'\033[0m'; G=$'\033[1;38;5;208m'; C=$'\033[1;36m'; Y=$'\033[1;33m'; M=$'\033[1;35m'; D=$'\033[2m'; fi
 
 # ── repo name (task-store convention) ───────────────────────
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0

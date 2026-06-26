@@ -327,3 +327,20 @@ install **inside** the image; the compose dev pattern masks the host dir with an
 * **Enforcement (current repos):** `health_check.sh` verifies `.dockerignore` exists **and contains
   `node_modules`** for every Docker repo — warns "MISSING node_modules (AI_RULES §12)" otherwise.
 * **Disk:** host `node_modules` shouldn't exist at all (Docker-only; `05-no-local-npm.sh` blocks host npm).
+
+## 13. Terminal output — NEVER green; use orange (operator can't read green) (fleet-wide, MANDATORY)
+
+The operator cannot read green text in their terminal (long-standing). **No framework script, hook, or
+statusline may emit green ANSI.** Green's full theme (`dark-daltonized`) is set in `.claude/settings.json`
+for Claude Code's own UI, but that does NOT recolor the raw ANSI our scripts print — so green escapes in
+our output must be eliminated at the source.
+
+* **Banned:** `\033[32m` / `\033[0;32m` / `\033[1;32m` / `\033[92m` (bright green) / `tput setaf 2` /
+  256-color greens (`38;5;{2,10,22,28,34,40,46,70,76,82,118,154}`).
+* **Use instead:** **orange `\033[1;38;5;208m`** (or `38;5;214` gold-orange where a second distinct
+  orange is needed, e.g. the `claude-personal` statusline vs `claude-museum`'s 208). Success/OK states
+  that were green → orange; the palette is orange (good) / yellow `38;5;220` (warn) / red `38;5;196`
+  (bad) / cyan `38;5;45/51` (info) — all colour-blind-safe, no green.
+* **Applies to:** statusline (`org-statusline.sh` + deployed `~/.claude-org-statusline.sh`), every
+  session/stop hook banner, and every `scripts/*.sh` `GREEN=`/inline color. Fixed fleet-wide 2026-06-26.
+* **When you add colored output:** never reach for green. If you need "good/pass," use orange.
