@@ -19,8 +19,8 @@ tell application "iTerm2"
     repeat with t in tabs of w
       repeat with s in sessions of t
         tell s
-          set ANSI green color to {65535, 35980, 0}        -- #FF8C00 orange
-          set ANSI bright green color to {65535, 40349, 11051} -- #FF9D2B
+          set ANSI green color to {45746, 8738, 8738}        -- #B22222 brick red (operator's pick)
+          set ANSI bright green color to {52685, 12850, 12850} -- #CD3232 lighter brick
         end tell
       end repeat
     end repeat
