@@ -3,7 +3,7 @@ set +e
 # Hook: Docker Container Naming Enforcement
 # Event: SessionStart
 # Enforces: all containers must be prefixed with EXACT repo folder name
-# e.g., agentFlow-app, agentFlow-mongo, my_biz-app
+# e.g., agentFlow-app, agentFlow-mongo, myapp-app
 # Preserves original casing — no lowercasing
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)

@@ -6,11 +6,11 @@ You are an expert AI development agent operating under the technical direction o
 ## 2. Technology Stack & Framework Rules
 When generating code or proposing solutions, strictly adhere to the following ecosystem preferences:
 * **Containerization:** All applications must be built using Docker. The preferred setup is to run the app, API, and database (MongoDB) using Docker Compose. All environment variables must be mapped to the `docker-compose` file.
-* **Docker Container Naming (MANDATORY):** All `container_name` values in `docker-compose.yml` MUST use the **exact repo folder name** as prefix, preserving original casing. Format: `{folderName}-app`, `{folderName}-mongo`, `{folderName}-api`, `{folderName}-mongo-express`. Example: folder `agentFlow` → `agentFlow-app`, `agentFlow-mongo`. Folder `my_biz` → `my_biz-app`, `my_biz-mongo`. If containers don't comply on `agent mode` or `session start`, the agent MUST: (1) `docker compose down` to stop non-compliant containers, (2) fix `container_name` values in `docker-compose.yml`, (3) `docker compose up -d --build` to rebuild. No exceptions.
+* **Docker Container Naming (MANDATORY):** All `container_name` values in `docker-compose.yml` MUST use the **exact repo folder name** as prefix, preserving original casing. Format: `{folderName}-app`, `{folderName}-mongo`, `{folderName}-api`, `{folderName}-mongo-express`. Example: folder `agentFlow` → `agentFlow-app`, `agentFlow-mongo`. Folder `acme` → `acme-app`, `acme-mongo`. If containers don't comply on `agent mode` or `session start`, the agent MUST: (1) `docker compose down` to stop non-compliant containers, (2) fix `container_name` values in `docker-compose.yml`, (3) `docker compose up -d --build` to rebuild. No exceptions.
 * **Project Identity:** Every session must display the current project/repo name prominently at start. The `00-project-identity.sh` hook handles this automatically.
 * **No Local npm/node/npx:** NEVER run `npm install`, `npm ci`, `npx`, or `node` commands directly on the host machine. Always use `docker compose exec app <command>`. The only exception is CI runners (GitHub Actions) where Docker is not available.
 * **Branching Strategy:** All repos use a two-branch model: `main` (production) and `test` (staging). NEVER push directly to `main`. Always push to `test` first, verify on the Vercel preview URL, then merge via PR.
-* **Git Email (MANDATORY):** GitHub blocks pushes with private emails. On EVERY push failure mentioning `GH007` or `email privacy`, fix it immediately — do NOT ask the user which option they prefer. Run: `git config user.email "3438317+knofler@users.noreply.github.com"` (repo-local, not global). Then amend unpushed commits with: `GIT_COMMITTER_EMAIL="3438317+knofler@users.noreply.github.com" GIT_COMMITTER_NAME="Rumman Ahmed" git commit --amend --no-edit --author="Rumman Ahmed <3438317+knofler@users.noreply.github.com>"`. Both author AND committer email must be the noreply address. Never change `--global` git config.
+* **Git Email (MANDATORY):** GitHub blocks pushes with private emails. On EVERY push failure mentioning `GH007` or `email privacy`, fix it immediately — do NOT ask the user which option they prefer. Run: `git config user.email "YOUR_ID+yourname@users.noreply.github.com"` (repo-local, not global). Then amend unpushed commits with: `GIT_COMMITTER_EMAIL="YOUR_ID+yourname@users.noreply.github.com" GIT_COMMITTER_NAME="Your Name" git commit --amend --no-edit --author="Your Name <YOUR_ID+yourname@users.noreply.github.com>"`. Both author AND committer email must be the noreply address. Never change `--global` git config.
 * **Frontend:** Always use Next.js for frontend development.
 * **API Hosting:** Use Render.com for API deployments.
 * **CI/CD & Deployment:** Use GitHub Actions for automation. Include `vercel.json` for Vercel deployments and proper environment variable management.
@@ -180,7 +180,7 @@ routines, others ad-hoc `SCHEDULE.md` files) fragments the view and/or bills tok
   **builds the core myAI platform FIRST**: `AI`/`ai_management` (master) + `agentFlow` + `connect`,
   the three repos that combine into the one sellable myAI product (`plan/GRAND_PRODUCT_ROADMAP.md`).
   These repos' tasks keep their P0/P1/P2 priority; **every other repo's pending tasks are capped at
-  P3** so the runner never builds a secondary/sandbox app (playground, JOB_HUNTER, AZURE, etc.) ahead
+  P3** so the runner never builds a secondary/sandbox app (any secondary or sandbox repo) ahead
   of the product. Enforced by `scripts/reprioritize_queue.sh` — run it at `agent mode` start and in
   `wrap up` (idempotent). This is the inverse of the consent list below: *priority* repos rise,
   *ignored* repos are skipped. When generating `schedule plan` tasks, the core repos' plans are the
@@ -188,8 +188,8 @@ routines, others ad-hoc `SCHEDULE.md` files) fragments the view and/or bills tok
   outrank the platform MVP.
 * **No-autonomous-schedule consent list (`config/schedule_ignore.txt`)** — some apps must
   **NEVER** get autonomous scheduled work without the user's **clear, explicit consent**
-  (user directive 2026-06-13, expanded 2026-06-16: `phm-main`, `A_THOUSAND_LAMPS`,
-  `AstroviaAppCode`, `AstroVia-Docker`, `TELESCOPE`, `MEMBERSHIP`, `membership_app`).
+  (user directive 2026-06-13, expanded 2026-06-16: your consented sandbox/secondary repos
+  configured in `config/schedule_ignore.txt`).
   Enforcement is layered: (a) the CLI runner **skips** any pending task whose repo is on the
   list during its autonomous fleet picks; (b) `schedule plan` / `schedule_task.sh` /
   `push_schedule.sh` **refuse to queue** work for these repos; (c) during `wrap up` /
@@ -225,7 +225,7 @@ repos. The clean separation that MUST always hold:
 * **The managed content is per-operator DATA.** Repos, plans, tasks, App-Directory cards,
   10-day plans, schedules — all come from the operator's `config/managed_repos.txt` + the gateway
   DB. They are whatever *that* operator manages.
-* **NEVER hardcode the current operator's repos** (agentFlow, connect, aircanteen, playground,
+* **NEVER hardcode the current operator's repos** (e.g. your product or managed repos,
   job-hunter, azure, …) into framework code, dashboard components, or shipped docs. Drive
   everything from live config/DB. Any repo name in code/docs must be a clearly-labelled *example*,
   never assumed present.
@@ -306,7 +306,7 @@ waste. **No machine may sync `node_modules` to Dropbox. Build artifacts ride the
     `.claude/settings.json`. Propagated fleet-wide via `update_all.sh` → enforced on **every machine**.
 * **Disk hygiene:** host `node_modules` shouldn't normally exist anyway — `hooks/pre-tool/05-no-local-npm.sh`
   blocks host npm (Docker-only). Stale ones can be deleted outright (regenerable):
-  `find ~/Dropbox/Dev -type d -name node_modules -prune -exec rm -rf {} +`.
+  `find ~/code -type d -name node_modules -prune -exec rm -rf {} +`.
 * **Also reduce Dropbox load:** lower its CPU priority so it yields to active apps —
   `for p in $(pgrep -i dropbox); do renice 20 "$p"; done`.
 

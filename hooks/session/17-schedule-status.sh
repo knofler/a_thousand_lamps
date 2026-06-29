@@ -21,9 +21,9 @@ ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 NAME=$(basename "$ROOT")
 PARENT=$(basename "$(dirname "$ROOT")")
 case "$PARENT/$NAME" in
-    azureApp/api)    NAME="azureApp-api" ;;
-    azureApp/app)    NAME="azureApp-app" ;;
-    azureApp/docker) NAME="azureApp-docker" ;;
+    # Disambiguate same-named monorepo sub-repos here, e.g.:
+    #   monorepo/api) NAME="monorepo-api" ;;
+    *) ;;
 esac
 syd() { TZ=Australia/Sydney date -r "$1" "+%d %b %H:%M AEST" 2>/dev/null; }
 

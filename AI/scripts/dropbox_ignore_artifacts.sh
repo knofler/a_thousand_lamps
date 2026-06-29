@@ -54,7 +54,7 @@ fi
 # --- resolve roots to scan ---------------------------------------------------
 ROOTS=()
 if [ "$ALL" = "1" ]; then
-  # every Dropbox root variant: ~/Dropbox, "~/Dropbox (Personal)", business, etc.
+  # every Dropbox root variant: $HOME/Dropbox, "$HOME/Dropbox (Personal)", business, etc.
   for d in "$HOME"/Dropbox*; do [ -d "$d" ] && ROOTS+=("$d"); done
 elif [ -n "$TARGET" ]; then
   ROOTS+=("$TARGET")
