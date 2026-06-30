@@ -96,7 +96,7 @@ Claude Code creates workspace, generates all 8 stages.
 
 ### With Existing Project Scan
 ```
-User: generate "add real-time notifications" --scan /path/to/agentFlow
+User: generate "add real-time notifications" --scan /path/to/your-repo
 ```
 Claude Code scans first, then generates with existing stack context.
 
