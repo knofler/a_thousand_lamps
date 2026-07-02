@@ -20,7 +20,9 @@ if [ -z "$ENV_FILE" ]; then
   exit 0
 fi
 
-MONGO_URI=$(grep -oP 'MONGODB_URI=\K.*' "$ENV_FILE" 2>/dev/null | tr -d '"' | tr -d "'")
+# NOTE: no `grep -oP` here — macOS BSD grep has no -P, so \K silently matched
+# nothing and this hook false-negatived ("No MONGODB_URI") on every Mac.
+MONGO_URI=$(grep -E '^MONGODB_URI=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")
 
 if [ -z "$MONGO_URI" ]; then
   echo "No MONGODB_URI in $ENV_FILE — skipping Atlas check"

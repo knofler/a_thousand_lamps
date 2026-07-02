@@ -23,12 +23,22 @@ PARENT=$(basename "$(dirname "$ROOT")")
 case "$PARENT/$NAME" in
     # Disambiguate same-named monorepo sub-repos here, e.g.:
     #   monorepo/api) NAME="monorepo-api" ;;
+    _MY_PROJECT/AI) NAME="ai_management" ;;   # master repo folder is AI; tasks live under ai_management
     *) ;;
 esac
 syd() { TZ=Australia/Sydney date -r "$1" "+%d %b %H:%M AEST" 2>/dev/null; }
 
+# Host→gateway calls MUST carry x-gateway-local-token (enforce=true 401s the Docker
+# bridge IP otherwise; curl -sf swallows the 401 → silent empty banner). See
+# scripts/lib/gateway.sh — master and managed layouts both tried.
+for _gwlib in "$ROOT/scripts/lib/gateway.sh" "$ROOT/AI/scripts/lib/gateway.sh"; do
+    [ -f "$_gwlib" ] && . "$_gwlib" && break
+done
+GATEWAY_LOCAL_TOKEN="${GATEWAY_LOCAL_TOKEN:-myai-local-bridge-dev}"
+
 # Body lines come back pre-colored from python (passes color codes in).
 body=$(curl -sf -m 4 -X POST "$URL" -H 'content-type: application/json' \
+    -H "x-gateway-local-token: $GATEWAY_LOCAL_TOKEN" \
     -d "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"id\":1,\"params\":{\"name\":\"tasks_list\",\"arguments\":{\"repo\":\"$NAME\",\"limit\":200}}}" 2>/dev/null \
     | B="$B" R="$R" G="$G" C="$C" Y="$Y" M="$M" D="$D" /usr/bin/python3 -c '
 import sys, json, os
