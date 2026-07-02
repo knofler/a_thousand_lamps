@@ -344,3 +344,23 @@ our output must be eliminated at the source.
 * **Applies to:** statusline (`org-statusline.sh` + deployed `~/.claude-org-statusline.sh`), every
   session/stop hook banner, and every `scripts/*.sh` `GREEN=`/inline color. Fixed fleet-wide 2026-06-26.
 * **When you add colored output:** never reach for green. If you need "good/pass," use orange.
+
+## 14. Config propagation is DEEP-MERGE, never clobber (fleet-wide, MANDATORY)
+
+* **The rule:** `update_all.sh` (and any future propagation path) must NEVER plain-overwrite a
+  repo-local JSON config. `.claude/settings.json` and `.mcp.json` are propagated through
+  `scripts/lib/json_merge.py`: **framework-owned keys stay canonical (master wins), repo-local
+  additions survive** (statusLine, extra session hooks, extra permissions, custom MCP servers),
+  and the file is rewritten **only when the merged result differs semantically** — a no-change
+  sync leaves the repo tree clean.
+* **Why (real incident):** the old unconditional overwrite clobbered agentFlow's repo-local
+  settings **18 times** (3 in one session), burning a repair cycle
+  (`git checkout origin/main -- .claude/settings.json .mcp.json`) at the start of every
+  agentFlow session. The old `.mcp.json` jq merge also silently dropped every non-`mcpServers`
+  top-level key and rewrote the file on every sync even when nothing changed.
+* **Guard, not fallback:** if a repo's file is invalid JSON, the merge SKIPS it and reports —
+  it never falls back to overwriting. A broken file is the repo agent's to fix; destroying it
+  hides the problem.
+* **When you add a new propagated JSON config:** wire it through `merge_json()` in
+  `update_all.sh`. Tests: `scripts/tests/test_json_merge.sh` (17 assertions).
+  LL: `LL/2026-07-02-updateall-json-clobber-deepmerge.md`.
