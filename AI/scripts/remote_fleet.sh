@@ -8,9 +8,19 @@
 # only billed when a session is driven). Cost is RAM (~250-400 MB/session) —
 # hence the cap and the duplicate guard.
 #
-# Duplicate guard: a repo that ALREADY has a live claude process (any profile,
-# any cwd match — including tabs you opened by hand) is SKIPPED on start, so
-# this never doubles up an agent on a repo.
+# Duplicate guard (wrap-up-aware): a museum session is the repo's REMOTE
+# DOORWAY — one should always exist. On start:
+#   - museum session already live            → skip (doorway already there)
+#   - only tech/default sessions live:
+#       repo tree CLEAN  (wrapped up)        → START museum alongside (dual
+#                                              session OK — wrap up completed
+#                                              means no duplicate-work risk)
+#       repo tree DIRTY  (mid-work)          → skip: finish with `wrap up`
+#                                              first, then re-run start
+#   - no session                             → start
+# Operating model: claude-tech = runner; claude-museum = remote + interactive
+# (interactive always ends with `wrap up`; mid-work handover = wrap up in the
+# tech/default session, then pick up the museum session from the phone).
 #
 # Usage:
 #   scripts/remote_fleet.sh status                  # who is live where, which profile
@@ -99,18 +109,23 @@ procs_for_repo() { # $1=repo path, $2=all claude procs → matching lines
   printf '%s\n' "$2" | awk -F'|' -v repo="$1" '$2 == repo'
 }
 
+tree_clean() { # $1=repo path → 0 when the working tree is clean (wrapped up)
+  [ -z "$(git -C "$1" status --porcelain 2>/dev/null)" ]
+}
+
 # ── status ────────────────────────────────────────────────────────────────────
 do_status() {
   local procs p matches line pid prof
   procs="$(claude_procs)"
   echo "REMOTE FLEET — live claude sessions per fleet repo (profile $PROFILE = phone-drivable)"
-  printf '%-22s %-10s %s\n' "REPO" "STATUS" "SESSIONS"
+  printf '%-22s %-10s %-8s %s\n' "REPO" "STATUS" "TREE" "SESSIONS"
   fleet_paths | while IFS= read -r p; do
+    tree="clean"; tree_clean "$p" || tree="DIRTY"
     matches="$(procs_for_repo "$p" "$procs")"
     if [ -z "$matches" ]; then
-      printf '%-22s %-10s %s\n' "$(basename "$p")" "-" "none"
+      printf '%-22s %-10s %-8s %s\n' "$(basename "$p")" "-" "$tree" "none"
     else
-      printf '%-22s %-10s ' "$(basename "$p")" "LIVE"
+      printf '%-22s %-10s %-8s ' "$(basename "$p")" "LIVE" "$tree"
       printf '%s\n' "$matches" | while IFS='|' read -r pid _ prof; do
         printf '[%s pid %s] ' "$prof" "$pid"
       done
@@ -124,13 +139,22 @@ do_status() {
 
 # ── start ─────────────────────────────────────────────────────────────────────
 do_start() {
-  local procs started=0 skipped=0 p name cmd script_lines=""
+  local procs started=0 skipped=0 p name matches cmd script_lines=""
   procs="$(claude_procs)"
   while IFS= read -r p; do
     name="$(basename "$p")"
-    if [ -n "$(procs_for_repo "$p" "$procs")" ]; then
-      echo "  ↷ $name — already has a live claude session (skipped, no duplicates)"
+    matches="$(procs_for_repo "$p" "$procs")"
+    if [ -n "$(printf '%s\n' "$matches" | awk -F'|' -v pr="$PROFILE" '$3 == pr')" ]; then
+      echo "  ↷ $name — $PROFILE remote session already live (skipped)"
       skipped=$((skipped + 1)); continue
+    fi
+    if [ -n "$matches" ]; then
+      if tree_clean "$p"; then
+        echo "  ⇉ $name — interactive session live but repo is CLEAN (wrapped up) → starting $PROFILE remote doorway alongside. Don't drive both at once."
+      else
+        echo "  ✋ $name — interactive session MID-WORK (uncommitted changes) — finish with 'wrap up' there, then re-run start (skipped)"
+        skipped=$((skipped + 1)); continue
+      fi
     fi
     if [ "$started" -ge "$MAX" ]; then
       echo "  !! cap reached (--max $MAX) — remaining repos skipped this run"
