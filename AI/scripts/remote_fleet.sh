@@ -195,6 +195,7 @@ do_start() {
   local procs started=0 skipped=0 p name matches cmd script_lines="" started_paths=""
   procs="$(claude_procs)"
   while IFS= read -r p; do
+    [ -n "$p" ] || continue
     name="$(basename "$p")"
     matches="$(procs_for_repo "$p" "$procs")"
     if [ -n "$(printf '%s\n' "$matches" | awk -F'|' -v pr="$PROFILE" '$3 == pr')" ]; then
