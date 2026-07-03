@@ -40,19 +40,27 @@ fi
 # Launch remote control from the project directory
 cd "$PROJECT_ROOT"
 
+echo "Org config: ${CLAUDE_CONFIG_DIR:-default (~/.claude)}"
+echo "  (your phone's Claude app must be signed into the SAME org to see this session)"
+echo ""
 echo "Starting remote-control session..."
 echo "Connect from your phone or another device using the QR code or URL below."
 echo ""
 
-claude remote-control || {
+# CLI >= 2.x exposes Remote Control as a flag (--remote-control [name]),
+# not the old `claude remote-control` subcommand. The session name makes
+# this repo identifiable in the mobile app's session list.
+claude --remote-control "$PROJECT_NAME" || {
   EXIT_CODE=$?
   echo ""
   if [[ $EXIT_CODE -eq 1 ]]; then
     echo "Remote Control failed to start."
     echo ""
     echo "Common causes:"
-    echo "  - Organization policy blocks remote-control (check with admin)"
-    echo "  - Not authenticated (run: claude auth)"
+    echo "  - Organization policy blocks remote-control — as an Enterprise admin/"
+    echo "    primary owner, enable it in the claude.ai Admin console (Claude Code settings)"
+    echo "  - Not authenticated (run: claude auth) or wrong org profile"
+    echo "    (run under the intended CLAUDE_CONFIG_DIR, e.g. claude-museum alias)"
     echo "  - Claude Code needs updating (run: claude update)"
   fi
   exit $EXIT_CODE

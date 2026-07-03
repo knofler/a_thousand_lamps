@@ -51,7 +51,7 @@ The keywords below are loaded on demand: when the user types one of them, Read t
 
 | Keyword | Action |
 |---------|--------|
-| `remote` | Start `claude remote-control` for this project. Run `./AI/scripts/remote.sh` — prints QR code/URL to connect from phone, tablet, or browser. Session runs locally. See `AI/documentation/MOBILE_CONTROL.md`. |
+| `remote` | Start `claude --remote-control` for this project. Run `./AI/scripts/remote.sh` — prints QR code/URL to connect from phone, tablet, or browser. Session runs locally. See `AI/documentation/MOBILE_CONTROL.md`. |
 | `telegram setup` | Run guided Telegram bot setup: `./AI/scripts/telegram-setup.sh`. Checks Bun installed, installs plugin, configures bot token, prints next steps for pairing and lockdown. See `AI/documentation/MOBILE_CONTROL.md`. |
 | `telegram start` | Launch Claude Code with Telegram channel active: `claude --channels plugin:telegram@claude-plugins-official`. Requires prior setup via `telegram setup`. |
 

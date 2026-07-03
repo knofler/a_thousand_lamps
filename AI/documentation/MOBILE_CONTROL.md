@@ -10,7 +10,7 @@ Three methods for accessing Claude Code remotely:
 
 | Method | How It Works | Best For | Requires |
 |--------|-------------|----------|----------|
-| **Remote Control** | Run `claude remote-control` locally, connect via QR/URL from phone | Driving an existing session from mobile | Claude subscription |
+| **Remote Control** | Run `claude --remote-control` locally, connect via QR/URL from phone | Driving an existing session from mobile | Claude subscription |
 | **Telegram Channel** | Telegram bot forwards messages to Claude Code session | Async task delegation, status checks | Bun, BotFather bot |
 | **Dispatch** | Send task from Claude mobile app to Desktop app | Fire-and-forget tasks from phone | Claude Desktop app |
 
@@ -18,7 +18,7 @@ Three methods for accessing Claude Code remotely:
 ┌──────────────────────────────────────────────────────────┐
 │  Your Machine (session runs here)                        │
 │                                                          │
-│  claude remote-control ←── Phone / Browser / Tablet      │
+│  claude --remote-control ←── Phone / Browser / Tablet    │
 │       ↑                                                  │
 │  claude --channels ←── Telegram Bot ←── Phone DM         │
 │       ↑                                                  │
@@ -42,7 +42,7 @@ Connect to a local Claude Code session from your phone, tablet, or another compu
 
 ```bash
 # From any project directory:
-claude remote-control
+claude --remote-control ai_management
 
 # Or use the framework script (auto-detects project root):
 ./scripts/remote.sh          # from AI root
@@ -62,6 +62,20 @@ Claude Code displays a **QR code** and a **URL**. Open either on your phone:
 ### Limitations
 - Organization-managed accounts may have remote-control disabled by policy
 - Requires your machine to be running and online
+
+### Enterprise orgs (Powerhouse Museum setup)
+- **Policy:** Remote Control on an org-managed account is controlled by the org.
+  If the session fails to start with a policy error, the org's primary owner/admin
+  enables it in the claude.ai **Admin console → Claude Code settings**.
+- **Same org on both ends:** the phone's Claude app must be signed into the SAME
+  org/account that started the session. For this fleet: start the session under the
+  museum profile (`CLAUDE_CONFIG_DIR=~/.claude-museum`, i.e. the `claude-museum`
+  alias) and sign the phone into rumman.ahmed@powerhouse.com.au.
+- **Wake policy:** the host Mac must stay awake — `sudo pmset -c sleep 0` (already
+  standard on runner hosts).
+- **Complementary path (Mac off):** Claude Code web/mobile cloud sessions on the
+  GitHub repo work without this machine — they land as `claude/*` branches that
+  CLI `agent mode` merges (see "CLI-Mobile Agent Workflow" in CLAUDE.md).
 
 ---
 
@@ -163,7 +177,7 @@ Send a task from the Claude mobile app to Claude Desktop on your machine. Deskto
 | | Remote Control | Dispatch |
 |---|---|---|
 | **Interaction** | Interactive — you drive the session | Fire-and-forget — send task, get result |
-| **Platform** | CLI (`claude remote-control`) | Desktop app only |
+| **Platform** | CLI (`claude --remote-control`) | Desktop app only |
 | **Session** | Connects to existing session | Creates a new session |
 
 ### Setup
@@ -190,7 +204,7 @@ Use these in any Claude Code session:
 
 | Keyword | Action |
 |---------|--------|
-| `remote` | Start `claude remote-control` for this project |
+| `remote` | Start `claude --remote-control` for this project |
 | `telegram setup` | Run guided Telegram bot setup |
 | `telegram start` | Launch Claude Code with Telegram channel active |
 
@@ -226,7 +240,7 @@ The `10-channel-status.sh` hook runs on every session start. If a Telegram bot i
 ```bash
 # Remote Control
 ./scripts/remote.sh                    # Start remote session
-claude remote-control                  # Direct CLI command
+claude --remote-control <name>         # Direct CLI command
 
 # Telegram — first time
 ./scripts/telegram-setup.sh            # Guided setup
