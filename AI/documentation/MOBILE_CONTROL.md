@@ -45,7 +45,7 @@ Remote Control on the spot, no restart. `/rc active` shows status.
 
 **Auto-enable every session:** set `"remoteControlAtStartup": true` in the profile's
 `settings.json` (CLI >= 2.1.119; also via `/config` -> "Enable Remote Control for all
-sessions"). Set per-org profile, e.g. `~/.claude-museum/settings.json`.
+sessions"). Set per-org profile, e.g. `~/.claude-work/settings.json`.
 
 **Phone connection:** remote sessions appear automatically in the Claude mobile app
 under **Code** (same account/org) — QR/URL scan is optional.
@@ -73,14 +73,14 @@ Claude Code displays a **QR code** and a **URL**. Open either on your phone:
 - Organization-managed accounts may have remote-control disabled by policy
 - Requires your machine to be running and online
 
-### Enterprise orgs (Powerhouse Museum setup)
+### Enterprise orgs (org-managed account setup)
 - **Policy:** Remote Control on an org-managed account is controlled by the org.
   If the session fails to start with a policy error, the org's primary owner/admin
   enables it in the claude.ai **Admin console → Claude Code settings**.
 - **Same org on both ends:** the phone's Claude app must be signed into the SAME
-  org/account that started the session. For this fleet: start the session under the
-  museum profile (`CLAUDE_CONFIG_DIR=~/.claude-museum`, i.e. the `claude-museum`
-  alias) and sign the phone into rumman.ahmed@powerhouse.com.au.
+  org/account that started the session. If you run per-org Claude profiles, start
+  the session under the matching profile (e.g. `CLAUDE_CONFIG_DIR=~/.claude-work`)
+  and sign the phone into the same work email (e.g. `you@your-org.example`).
 - **Wake policy:** the host Mac must stay awake — `sudo pmset -c sleep 0` (already
   standard on runner hosts).
 - **Complementary path (Mac off):** Claude Code web/mobile cloud sessions on the

@@ -22,15 +22,26 @@
 # (interactive always ends with `wrap up`; mid-work handover = wrap up in the
 # tech/default session, then pick up the museum session from the phone).
 #
+# ANCHOR RULE: the master AI repo's museum session is the fleet's remote
+# doorway — the ONLY way to restart stopped sessions from the phone is to
+# drive that session and type `remote start <repo…>` (it runs this script on
+# the Mac and opens the iTerm tabs). So `stop` NEVER kills the anchor — not
+# via `all`, not even by name — unless --include-anchor is passed explicitly.
+# If the anchor ever dies anyway (reboot, crash), recovery needs one action
+# ON the Mac: open a terminal there (or Screen Sharing/SSH) and run
+# `remote_fleet.sh start AI` — then the phone has its doorway back.
+#
 # Usage:
 #   scripts/remote_fleet.sh status                  # who is live where, which profile
 #   scripts/remote_fleet.sh start [all|core|name…]  # open museum session per repo (iTerm tabs)
 #   scripts/remote_fleet.sh stop  [all|name…]       # stop MUSEUM sessions only (never your
-#                                                   #   interactive claude/claude-tech shells)
+#                                                   #   interactive claude/claude-tech shells;
+#                                                   #   never the master-AI anchor session)
 # Options:
-#   --dry-run     print what would happen, do nothing
-#   --max N       cap sessions started in one run (default 12 — RAM guard)
-#   --profile P   config-dir suffix to launch with (default museum)
+#   --dry-run         print what would happen, do nothing
+#   --max N           cap sessions started in one run (default 12 — RAM guard)
+#   --profile P       config-dir suffix to launch with (default museum)
+#   --include-anchor  allow `stop` to kill the master-AI anchor session too
 #
 # Repo set: config/remote_fleet.txt (one path per line, ~ ok, # comments).
 # `core` = master AI + agentFlow + connect (the product trio).
@@ -44,13 +55,14 @@ CORE_NAMES="AI agentFlow connect"
 
 ACTION="${1:-status}"; shift 2>/dev/null || true
 
-DRY_RUN=false; MAX=12; PROFILE="museum"
+DRY_RUN=false; MAX=12; PROFILE="museum"; INCLUDE_ANCHOR=false
 TARGETS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=true ;;
     --max) shift; MAX="${1:-12}" ;;
     --profile) shift; PROFILE="${1:-museum}" ;;
+    --include-anchor) INCLUDE_ANCHOR=true ;;
     *) TARGETS+=("$1") ;;
   esac
   shift
@@ -109,8 +121,40 @@ procs_for_repo() { # $1=repo path, $2=all claude procs → matching lines
   printf '%s\n' "$2" | awk -F'|' -v repo="$1" '$2 == repo'
 }
 
-tree_clean() { # $1=repo path → 0 when the working tree is clean (wrapped up)
-  [ -z "$(git -C "$1" status --porcelain 2>/dev/null)" ]
+# tree_state <repo> → "clean" | "residue" | "DIRTY"
+# DIRTY = real mid-work: modified TRACKED files that are not framework
+# propagation (AI/, .claude/, hooks/, CLAUDE/GEMINI/AGENTS.md), not ephemeral
+# state caches, and not nested-git-repo pointers (a parent shows "M <subrepo>"
+# whenever the sub-repo's content moves — that's the sub-repo's business).
+# residue = only untracked files / framework noise (wrapped, safe to coexist).
+tree_state() {
+  local p="$1" line st path real=0 any=0
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    any=1
+    st="${line:0:2}"; path="${line:3}"; path="${path%\"}"; path="${path#\"}"
+    case "$st" in "??"*) continue ;; esac
+    case "$path" in
+      AI/*|.claude/*|hooks/*|CLAUDE.md|GEMINI.md|AGENTS.md) continue ;;
+    esac
+    [ -e "$p/$path/.git" ] && continue
+    real=1; break
+  done <<EOF
+$(git -C "$p" status --porcelain 2>/dev/null)
+EOF
+  if [ "$real" = 1 ]; then echo "DIRTY"; elif [ "$any" = 1 ]; then echo "residue"; else echo "clean"; fi
+}
+
+tree_clean() { # 0 when no REAL mid-work (clean or residue) — the dual-session gate
+  [ "$(tree_state "$1")" != "DIRTY" ]
+}
+
+# is_anchor <repo> → 0 when repo is the master AI repo (the fleet's remote
+# doorway). Detected by signature, not by this script's own location — the
+# script propagates into every managed repo's AI/, but only the MASTER has
+# update_all.sh + managed_repos.txt at its repo ROOT.
+is_anchor() {
+  [ -f "$1/scripts/update_all.sh" ] && [ -f "$1/config/managed_repos.txt" ]
 }
 
 # ── status ────────────────────────────────────────────────────────────────────
@@ -120,7 +164,7 @@ do_status() {
   echo "REMOTE FLEET — live claude sessions per fleet repo (profile $PROFILE = phone-drivable)"
   printf '%-22s %-10s %-8s %s\n' "REPO" "STATUS" "TREE" "SESSIONS"
   fleet_paths | while IFS= read -r p; do
-    tree="clean"; tree_clean "$p" || tree="DIRTY"
+    tree="$(tree_state "$p")"
     matches="$(procs_for_repo "$p" "$procs")"
     if [ -z "$matches" ]; then
       printf '%-22s %-10s %-8s %s\n' "$(basename "$p")" "-" "$tree" "none"
@@ -198,6 +242,10 @@ do_stop() {
   procs="$(claude_procs)"
   while IFS= read -r p; do
     name="$(basename "$p")"
+    if is_anchor "$p" && ! $INCLUDE_ANCHOR; then
+      echo "  ⚓ $name — ANCHOR doorway (master AI repo), never stopped: it's the only phone-reachable session that can 'remote start' the others back (override: --include-anchor)"
+      continue
+    fi
     procs_for_repo "$p" "$procs" | while IFS='|' read -r pid _ prof; do
       if [ "$prof" = "$PROFILE" ]; then
         if $DRY_RUN; then echo "  ■ would stop [$prof] $name (pid $pid)"
@@ -217,6 +265,6 @@ case "$ACTION" in
   status) do_status ;;
   start)  do_start ;;
   stop)   do_stop ;;
-  -h|--help|help) sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//' ;;
+  -h|--help|help) awk 'NR==1{next} /^# =+$/{if(++seen==2) exit; next} {sub(/^# ?/,""); print}' "$0" ;;
   *) echo "unknown action: $ACTION (status|start|stop)" >&2; exit 2 ;;
 esac
