@@ -40,6 +40,16 @@ Connect to a local Claude Code session from your phone, tablet, or another compu
 
 ### Setup
 
+**In an already-running session (fastest):** type `/remote-control` (or `/rc`) — enables
+Remote Control on the spot, no restart. `/rc active` shows status.
+
+**Auto-enable every session:** set `"remoteControlAtStartup": true` in the profile's
+`settings.json` (CLI >= 2.1.119; also via `/config` -> "Enable Remote Control for all
+sessions"). Set per-org profile, e.g. `~/.claude-museum/settings.json`.
+
+**Phone connection:** remote sessions appear automatically in the Claude mobile app
+under **Code** (same account/org) — QR/URL scan is optional.
+
 ```bash
 # From any project directory:
 claude --remote-control ai_management
