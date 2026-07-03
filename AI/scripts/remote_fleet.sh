@@ -37,11 +37,18 @@
 #   scripts/remote_fleet.sh stop  [all|name…]       # stop MUSEUM sessions only (never your
 #                                                   #   interactive claude/claude-tech shells;
 #                                                   #   never the master-AI anchor session)
+#   scripts/remote_fleet.sh stop --last-start       # stop ONLY the sessions the most recent
+#                                                   #   'start' run actually launched (undo a
+#                                                   #   start without touching already-live
+#                                                   #   sessions; anchor rule still applies)
 # Options:
 #   --dry-run         print what would happen, do nothing
 #   --max N           cap sessions started in one run (default 12 — RAM guard)
 #   --profile P       config-dir suffix to launch with (default museum)
 #   --include-anchor  allow `stop` to kill the master-AI anchor session too
+#   --last-start      (stop only) target the repos recorded by the last real
+#                     'start' run — ~/.myai-remote-fleet-last-start, machine-
+#                     local, overwritten by every non-dry-run 'start'
 #
 # Repo set: config/remote_fleet.txt (one path per line, ~ ok, # comments).
 # `core` = master AI + agentFlow + connect (the product trio).
@@ -55,7 +62,8 @@ CORE_NAMES="AI agentFlow connect"
 
 ACTION="${1:-status}"; shift 2>/dev/null || true
 
-DRY_RUN=false; MAX=12; PROFILE="museum"; INCLUDE_ANCHOR=false
+DRY_RUN=false; MAX=12; PROFILE="museum"; INCLUDE_ANCHOR=false; LAST_START=false
+LAST_START_FILE="$HOME/.myai-remote-fleet-last-start"
 TARGETS=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -63,6 +71,7 @@ while [ $# -gt 0 ]; do
     --max) shift; MAX="${1:-12}" ;;
     --profile) shift; PROFILE="${1:-museum}" ;;
     --include-anchor) INCLUDE_ANCHOR=true ;;
+    --last-start) LAST_START=true ;;
     *) TARGETS+=("$1") ;;
   esac
   shift
@@ -183,7 +192,7 @@ do_status() {
 
 # ── start ─────────────────────────────────────────────────────────────────────
 do_start() {
-  local procs started=0 skipped=0 p name matches cmd script_lines=""
+  local procs started=0 skipped=0 p name matches cmd script_lines="" started_paths=""
   procs="$(claude_procs)"
   while IFS= read -r p; do
     name="$(basename "$p")"
@@ -223,12 +232,22 @@ do_start() {
       echo "  ▶ starting [$PROFILE] $name"
     fi
     started=$((started + 1))
+    started_paths="${started_paths}${p}
+"
   done <<EOF
 $(resolve_targets)
 EOF
   if ! $DRY_RUN && [ -n "$script_lines" ]; then
     osascript -e "$script_lines
 end tell" >/dev/null
+  fi
+  # record what THIS run launched (machine-local) so 'stop --last-start' can
+  # undo exactly this start without touching sessions that were already live.
+  if ! $DRY_RUN; then
+    {
+      echo "# repos started by the last 'remote_fleet.sh start' run on $(hostname -s)"
+      printf '%s' "$started_paths"
+    } > "$LAST_START_FILE"
   fi
   echo
   echo "started: $started  skipped(already live): $skipped  (~$((started * 350)) MB new RAM)"
@@ -237,10 +256,28 @@ end tell" >/dev/null
 }
 
 # ── stop ──────────────────────────────────────────────────────────────────────
+# stop_targets → the repo paths 'stop' should act on: the recorded last-start
+# set (--last-start) or the usual all|core|name resolution.
+stop_targets() {
+  if $LAST_START; then
+    if [ ! -s "$LAST_START_FILE" ]; then
+      echo "✗ --last-start: no record at $LAST_START_FILE (no 'start' has run on this machine yet)" >&2
+      return 0
+    fi
+    grep -vE '^\s*(#|$)' "$LAST_START_FILE" || {
+      echo "  (last 'start' run launched nothing — nothing to stop)" >&2
+      true
+    }
+  else
+    resolve_targets
+  fi
+}
+
 do_stop() {
   local procs p name stopped=0 pid prof
   procs="$(claude_procs)"
   while IFS= read -r p; do
+    [ -n "$p" ] || continue
     name="$(basename "$p")"
     if is_anchor "$p" && ! $INCLUDE_ANCHOR; then
       echo "  ⚓ $name — ANCHOR doorway (master AI repo), never stopped: it's the only phone-reachable session that can 'remote start' the others back (override: --include-anchor)"
@@ -256,7 +293,7 @@ do_stop() {
     done
     stopped=$((stopped + 1))
   done <<EOF
-$(resolve_targets)
+$(stop_targets)
 EOF
   return 0
 }
