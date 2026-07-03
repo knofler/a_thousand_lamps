@@ -273,7 +273,7 @@ When the user types any of these, Read `AI/documentation/KEYWORDS_REFERENCE.md` 
 
 **Productionisation:** `make preview`, `make prod`
 
-**Remote control & Telegram:** `remote`, `telegram setup`, `telegram start`
+**Remote control & Telegram:** `remote`, `remote status` / `remote start [repo…]` / `remote stop [repo…]` (fleet remote sessions — run `./AI/scripts/remote_fleet.sh <action>`; status shows which repos have live claude sessions + profile, start opens phone-drivable claude-museum sessions duplicate-guarded, stop kills museum sessions only), `telegram setup`, `telegram start`
 
 **Fleet inventory:** `ai tools`, `more agents`, `more skills`, `more mcp` / `more mcp tools`, `more routes`, `ai tools help` / `help ai tools`
 

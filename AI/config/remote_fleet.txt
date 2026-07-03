@@ -1,0 +1,20 @@
+# remote_fleet.txt — repos that get an always-on claude-museum session for
+# phone remote access (scripts/remote_fleet.sh start). One path per line.
+# Keep this to the repos you actually drive remotely — each live session
+# costs ~250-400 MB RAM (tokens are only burned when a session is driven).
+
+# Core product trio (also `remote fleet start core`)
+~/Dropbox/Dev/PROJECT/CODE/_MY_PROJECT/AI
+~/Dropbox/Dev/PROJECT/CODE/_MY_PROJECT/agentFlow
+~/Dropbox/Dev/PROJECT/CODE/_MY_PROJECT/connect
+
+# Active apps
+~/Dropbox/Dev/PROJECT/CODE/_MY_PROJECT/playground
+~/Dropbox/Dev/PROJECT/CODE/_MY_PROJECT/JOB_HUNTER
+~/Dropbox/Dev/PROJECT/CODE/AZURE
+~/Dropbox/Dev/PROJECT/CODE/_MY_PROJECT/PROJECT_AIRCANTEEN/2025/aircanteen
+
+# Powerhouse
+~/Dropbox/Dev/PROJECT/CODE/POWERHOUSE/WEBSITE/tnew-phm
+~/Dropbox/Dev/PROJECT/CODE/POWERHOUSE/CONTENT_API/ph_content_api
+~/Dropbox/Dev/PROJECT/CODE/POWERHOUSE/CONTENT_API/ph_content_app
