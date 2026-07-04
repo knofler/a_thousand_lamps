@@ -44,6 +44,12 @@ if [[ "$CMD" == *"git commit"* ]]; then
   # match — earlier versions self-matched during propagation commits because
   # the regex `BEGIN.PRIVATE.KEY` (with `.` as wildcard) matched its own
   # source-text occurrence in the diff.
+  # Canonical patterns live in scripts/lib/secret_patterns.sh (shared with the
+  # memory-export redactor — ../../scripts/lib resolves in both the master and
+  # managed AI/ layouts). Inline copies below are the fallback for repos where
+  # the lib hasn't propagated yet — keep them in sync with the lib.
+  HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)"
+  . "$HOOK_DIR/../../scripts/lib/secret_patterns.sh" 2>/dev/null || true
   PAT_AWS='AKIA[A-Z0-9]{16}'
   PAT_OPENAI='sk-[a-zA-Z0-9]{48}'
   PAT_GH='ghp_[a-zA-Z0-9]{36}'
@@ -52,7 +58,7 @@ if [[ "$CMD" == *"git commit"* ]]; then
   # myAI per-tenant API key (ADR-010 §3.6) — myai_live_/myai_test_ + base62 secret.
   # Fragments concatenated so this source line cannot self-match.
   PAT_MYAI="myai_(live|test)_[A-Za-z0-9]""{20,}"
-  COMBINED="${PAT_AWS}|${PAT_OPENAI}|${PAT_GH}|${PAT_GCP}|${PAT_PEM}|${PAT_MYAI}"
+  COMBINED="${SECRET_PAT_COMBINED:-${PAT_AWS}|${PAT_OPENAI}|${PAT_GH}|${PAT_GCP}|${PAT_PEM}|${PAT_MYAI}}"
   SECRETS=$(git diff --cached -U0 2>/dev/null | grep -iE "$COMBINED" || true)
   [[ -n "$SECRETS" ]] && echo "BLOCKED: secrets detected in staged changes" && exit 2
 fi
