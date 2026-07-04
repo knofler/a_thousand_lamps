@@ -17,6 +17,27 @@ The keywords below are loaded on demand: when the user types one of them, Read t
 | `list` | **Audit all managed repos.** Read `config/managed_repos.txt` from the AI master repo, check each path for: AI/ folder exists, STATE.md exists, CLAUDE.md exists, GEMINI.md exists. Output a markdown table with columns: Project, Level (standalone/workspace root/sub-repo), AI/, STATE.md, CLAUDE.md, GEMINI.md. Bold workspace roots and standalones. |
 | `show urls` | Show all deployment URLs for this project: production (main branch) and preview (test branch). Check `.vercel/project.json` for Vercel project name, `render.yaml` for Render. Production: `https://{project}.vercel.app`. Preview: `https://{project}-git-test-{org}.vercel.app`. |
 
+## Brain — git-versioned agent memory (`brain …`)
+
+> The Brain is the AI layer's own version control, separate from code git: a private git repo of append-only atoms where **sessions = commits, wrap up = merge, `main` = the consolidated truth every agent boots from**. This repo's namespace lives at `repos/<this-repo>/…` inside the operator's brain store; `memory/` is cross-repo. Agents NEVER read the brain repo directly — use the master gateway's `brain_*` MCP tools (ai-framework server, `localhost:3100`). If the gateway is unreachable, skip brain steps silently (reading needs NO server: `git pull` the brain repo and read `brief.md`/`working.md` on its main). The keywords are deliberate git muscle memory.
+
+| Keyword | Action |
+|---------|--------|
+| `brain status` | Call `brain_status` — brain location, current branch, namespaces, atom counts, open `session/*` + `idea/*` branches, pending stashes, last commit. Report as a compact table. |
+| `brain commit [note]` | Call `brain_commit` — append ONE immutable atom on the current brain branch. Infer `kind` (`session`/`handoff` under this repo's namespace; `memory` = cross-repo, omit repo) + a kebab slug; body = the note or a concise summary of the current working context. Identical re-writes dedup to a no-op. |
+| `brain stash [slug]` | Call `brain_stash` — freeze the current working context (task, decisions, next steps) to the brain's **MAIN** branch and walk away. Survives across processes, devices, and agents — ANY later session can pop it. |
+| `brain pop [slug]` | Call `brain_pop` — return + consume the newest stash (or newest matching slug) and continue from that context. |
+| `brain branch <idea>` | Call `brain_branch` with `kind=idea` — create/resume the long-lived parallel thinking context `idea/<slug>` off brain main. |
+| `brain checkout <ref>` | Call `brain_checkout` — switch to `main`, `session/<…>`, or `idea/<…>` only. |
+| `brain merge [branch]` | Call `brain_merge` — merge the current (or named) session/idea branch into brain main (`--no-ff`); **what `wrap up` calls.** Session branches are deleted after merge; idea branches survive. Auto-runs the distiller: `brief.md` (~150 tok) / `working.md` (~2k) / `rollup.md` regenerate on main. |
+| `brain log [n]` | Call `brain_log` — brain commit history, scopable by `ref`/`path` (e.g. `repos/<this-repo>/sessions`). |
+| `brain diff` | Call `brain_diff` — what the current brain branch has that main doesn't (default `main..HEAD`); `patch=true` for the diff. |
+| `brain delta` | Call `brain_delta` with `since` = your last-seen brain main SHA (the `Brain:` line the previous wrap-up left in `AI/state/AI_AGENT_HANDOFF.md`, or the SHA from the `context_boot` bundle) — a ~300–800-token catch-up of new atoms/commits/artifacts. No/unknown SHA → the ~150-token boot brief. **What `agent mode -min` boots with.** Remember the returned `sha` as the next anchor. |
+| `brain blame <path\|topic>` | Provenance — which session/commit wrote an atom and when: `brain_log` scoped to the atom's path. Full dual code↔memory provenance lands with BRAIN B5. |
+| `brain revert <sha>` | Call `brain_revert` — undo a brain commit with an INVERSE commit; history is never rewritten. |
+
+**Anchor convention:** every `wrap up` records the post-merge brain main SHA as a `Brain: <sha>` line in the handoff header; every boot also reports the current SHA. That SHA is the `since` for the next `brain_delta` — diff-only catch-up instead of a full state re-read.
+
 ## Scheduling — autonomous work queue (STANDARD)
 
 > **The ONE correct way to schedule autonomous work in this repo: create a TASK in the myAI gateway queue.** A launchd CLI task runner (every few hours, free Fable window, `claude-tech` profile, subscription-billed, 0 API tokens) pulls the highest-priority pending task, works it on a `test` branch, then flips it to **Needs Review** for a human `ship it`. **Do NOT create gateway *cron schedules* for this work** — those bill API tokens and are disabled fleet-wide. Create a task; the runner schedules it by priority.
