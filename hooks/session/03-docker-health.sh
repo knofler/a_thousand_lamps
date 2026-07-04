@@ -25,6 +25,21 @@ if [ ! -f "$COMPOSE_FILE" ]; then
   exit 0
 fi
 
+# Runner ci-workspace guard (LL 2026-07-04): a workspace clone has no real .env,
+# so compose parsing fails here (MONGODB_URI is `:?` required) — and the shared
+# myai stack must NEVER be composed from a workspace anyway. Report the shared
+# containers by name instead of nudging a compose-up that hook 16 would block.
+WS_ROOT="${CI_WORKSPACES:-$HOME/ci-workspaces}"
+if grep -qE '^name:[[:space:]]*myai[[:space:]]*$' "$COMPOSE_FILE" 2>/dev/null; then
+  case "$ROOT" in
+    "$WS_ROOT"/*)
+      RUNNING=$(docker ps --filter 'name=^myai-' --format '{{.Names}}' 2>/dev/null | wc -l | tr -d ' ')
+      echo "Docker: $RUNNING shared myai container(s) running (workspace clone — gateway deploys run from the master checkout only)"
+      exit 0
+      ;;
+  esac
+fi
+
 # Check container status
 CONTAINERS=$(docker compose -f "$COMPOSE_FILE" ps --format json 2>/dev/null)
 

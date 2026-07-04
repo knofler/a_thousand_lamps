@@ -198,6 +198,20 @@ routines, others ad-hoc `SCHEDULE.md` files) fragments the view and/or bills tok
   `cli_task_runner.sh --repo <name> --force` (or `--task <id>`), or env `SCHEDULE_CONSENT=1`
   for the queuing scripts — *manual = consent*. The list is propagated fleet-wide by
   `update_all.sh`, so every repo's guards honor the same names.
+* **Gateway deploys NEVER run from a runner ci-workspace (LL 2026-07-04, MANDATORY).**
+  Scheduled/headless tasks must never `docker compose build/up/restart/down` the shared
+  `myai` gateway stack from their `~/ci-workspaces/*` clone — the clone has no real `.env`
+  (gitignored), so the gateway silently rebinds to the empty local mongo instead of Atlas
+  and split-brains the fleet queue (real incident: 10.5h of "no claimable pending tasks"
+  while 32 tasks sat in Atlas; status flips lost). Gateway deploys are **interactive /
+  selfheal ops run from the master checkout only**. Enforcement is layered: (a) hook
+  `hooks/pre-tool/16-block-workspace-gateway-deploy.sh` blocks mutating myai compose
+  commands whose effective dir is under the ci-workspaces root; (b) the runner task prompt
+  carries an explicit DEPLOY GUARD rule ("say it in your RESULT line instead of deploying");
+  (c) `docker-compose.yml` makes `MONGODB_URI` **required** (`:?` interpolation — compose
+  fails loudly instead of defaulting to local mongo); (d) `machine_selfheal.sh` §7 detects a
+  rogue container (workspace `working_dir` label, or Mongo-URI drift vs the owning `.env`)
+  and recreates gateway+dashboard from the master checkout.
 
 ## 8. Management-Issue → Distributed-Rule Protocol (master repo, MANDATORY)
 

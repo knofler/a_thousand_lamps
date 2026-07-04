@@ -257,7 +257,7 @@
           {
             "type": "command",
             "command": "./hooks/session/18-machine-selfheal.sh",
-            "timeout": 8000
+            "timeout": 60000
           },
           {
             "type": "command",
@@ -319,6 +319,11 @@
           {
             "type": "command",
             "command": "./hooks/pre-tool/09-cloud-cost-guard.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "./hooks/pre-tool/16-block-workspace-gateway-deploy.sh",
             "timeout": 3000
           }
         ]
