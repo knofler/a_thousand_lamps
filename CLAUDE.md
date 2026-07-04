@@ -265,7 +265,7 @@ Short phrases the user may type instead of full prompts. The keywords below have
 
 When the user types any of these, Read `AI/documentation/KEYWORDS_REFERENCE.md` for the full action:
 
-**Brain (git-versioned agent memory):** `brain status`, `brain commit [note]`, `brain stash` / `brain pop`, `brain branch <idea>` / `brain checkout <ref>`, `brain merge` (what `wrap up` calls), `brain log`, `brain diff`, `brain delta` (what `agent mode -min` boots with), `brain blame <path|topic>`, `brain revert <sha>` — git muscle memory over the master gateway's `brain_*` MCP tools; sessions = commits, wrap up = merge, brain `main` = the truth every agent boots from.
+**Brain (git-versioned agent memory):** `brain status`, `brain commit [note]`, `brain stash` / `brain pop`, `brain branch <idea>` / `brain checkout <ref>`, `brain merge` (what `wrap up` calls), `brain log`, `brain diff`, `brain delta` (what `agent mode -min` boots with), `brain blame <code-sha|brain-ref>` (code↔memory provenance, both directions), `brain revert <sha>` — git muscle memory over the master gateway's `brain_*` MCP tools; sessions = commits, wrap up = merge, brain `main` = the truth every agent boots from.
 
 **Status & review:** `status`, `review`, `plan [feature]`, `scaffold [thing]`, `audit`, `handoff`, `list`, `show urls`
 
