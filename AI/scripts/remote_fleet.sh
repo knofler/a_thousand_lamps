@@ -34,6 +34,11 @@
 # Usage:
 #   scripts/remote_fleet.sh status                  # who is live where, which profile
 #   scripts/remote_fleet.sh start [all|core|name…]  # open museum session per repo (iTerm tabs)
+#   scripts/remote_fleet.sh start --last-start      # reopen EXACTLY the repos the most recent
+#                                                   #   explicitly-targeted 'start' run launched
+#                                                   #   (duplicate guard applies as normal; the
+#                                                   #   record itself is left untouched — see
+#                                                   #   --last-start below)
 #   scripts/remote_fleet.sh stop  [all|name…]       # stop MUSEUM sessions only (never your
 #                                                   #   interactive claude/claude-tech shells;
 #                                                   #   never the master-AI anchor session)
@@ -46,9 +51,18 @@
 #   --max N           cap sessions started in one run (default 12 — RAM guard)
 #   --profile P       config-dir suffix to launch with (default museum)
 #   --include-anchor  allow `stop` to kill the master-AI anchor session too
-#   --last-start      (stop only) target the repos recorded by the last real
-#                     'start' run — ~/.myai-remote-fleet-last-start, machine-
-#                     local, overwritten by every non-dry-run 'start'
+#   --last-start      (start/stop) target the repos recorded by the last real
+#                     explicitly-targeted 'start' run — the record at
+#                     ~/.myai-remote-fleet-last-start, machine-local. With no
+#                     record on this machine, --last-start is a clean error.
+#                     DECISION (documented, do not change casually): a
+#                     'start --last-start' run NEVER rewrites the record. The
+#                     record always means "the last start whose repo set the
+#                     operator chose explicitly", so stop --last-start /
+#                     start --last-start form a stable, re-runnable toggle
+#                     pair over the same set — reopening from the record (where
+#                     some repos may be skipped as already live) can't shrink
+#                     what a later stop --last-start acts on.
 #
 # Repo set: config/remote_fleet.txt (one path per line, ~ ok, # comments).
 # `core` = master AI + agentFlow + connect (the product trio).
@@ -79,7 +93,9 @@ done
 [ ${#TARGETS[@]} -eq 0 ] && TARGETS=(all)
 
 CONFIG_DIR="$HOME/.claude-$PROFILE"
-[ -d "$CONFIG_DIR" ] || { echo "✗ profile config dir not found: $CONFIG_DIR" >&2; exit 1; }
+if [ "${REMOTE_FLEET_LIB_ONLY:-0}" != 1 ]; then
+  [ -d "$CONFIG_DIR" ] || { echo "✗ profile config dir not found: $CONFIG_DIR" >&2; exit 1; }
+fi
 
 # ── repo set ──────────────────────────────────────────────────────────────────
 expand_tilde() { case "$1" in "~/"*) printf '%s' "$HOME/${1#\~/}" ;; *) printf '%s' "$1" ;; esac; }
@@ -191,12 +207,36 @@ do_status() {
 }
 
 # ── start ─────────────────────────────────────────────────────────────────────
+# start_targets → the repo paths 'start' should act on: the recorded last-start
+# set (--last-start) or the usual all|core|name resolution.
+start_targets() {
+  if $LAST_START; then
+    grep -vE '^\s*(#|$)' "$LAST_START_FILE" || true
+  else
+    resolve_targets
+  fi
+}
+
 do_start() {
   local procs started=0 skipped=0 p name matches cmd script_lines="" started_paths=""
+  if $LAST_START; then
+    if [ ! -s "$LAST_START_FILE" ]; then
+      echo "✗ --last-start: no record at $LAST_START_FILE (no 'start' has run on this machine yet)" >&2
+      exit 1
+    fi
+    if ! grep -qvE '^\s*(#|$)' "$LAST_START_FILE"; then
+      echo "  (last 'start' run launched nothing — nothing to reopen)"
+      return 0
+    fi
+  fi
   procs="$(claude_procs)"
   while IFS= read -r p; do
     [ -n "$p" ] || continue
     name="$(basename "$p")"
+    if $LAST_START && [ ! -e "$p/.git" ]; then
+      echo "  !! $name — recorded path is no longer a git repo ($p), skipped"
+      continue
+    fi
     matches="$(procs_for_repo "$p" "$procs")"
     if [ -n "$(printf '%s\n' "$matches" | awk -F'|' -v pr="$PROFILE" '$3 == pr')" ]; then
       echo "  ↷ $name — $PROFILE remote session already live (skipped)"
@@ -236,7 +276,7 @@ do_start() {
     started_paths="${started_paths}${p}
 "
   done <<EOF
-$(resolve_targets)
+$(start_targets)
 EOF
   if ! $DRY_RUN && [ -n "$script_lines" ]; then
     osascript -e "$script_lines
@@ -244,7 +284,10 @@ end tell" >/dev/null
   fi
   # record what THIS run launched (machine-local) so 'stop --last-start' can
   # undo exactly this start without touching sessions that were already live.
-  if ! $DRY_RUN; then
+  # A 'start --last-start' run deliberately does NOT rewrite the record (see
+  # header): the record stays "the last explicitly-targeted start", keeping
+  # start/stop --last-start a stable toggle over the same repo set.
+  if ! $DRY_RUN && ! $LAST_START; then
     {
       echo "# repos started by the last 'remote_fleet.sh start' run on $(hostname -s)"
       printf '%s' "$started_paths"
@@ -298,6 +341,10 @@ $(stop_targets)
 EOF
   return 0
 }
+
+# When sourced with REMOTE_FLEET_LIB_ONLY=1 (scripts/tests/test_remote_fleet.sh),
+# stop here: functions + parsed defaults are defined, nothing dispatches.
+if [ "${REMOTE_FLEET_LIB_ONLY:-0}" = "1" ]; then return 0 2>/dev/null || exit 0; fi
 
 case "$ACTION" in
   status) do_status ;;
