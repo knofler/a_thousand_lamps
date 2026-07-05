@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 21-iterm-no-green.sh — remap iTerm2's unreadable ANSI green → orange every session.
+# 21-iterm-no-green.sh — remap iTerm2's unreadable ANSI green → orange (#FF8700) every session.
 #
 # The operator cannot read green (AI_RULES §13). The `dark-daltonized` Claude Code
 # theme + the framework's own orange output (PR #275) cover most of it, but iTerm's
@@ -19,8 +19,8 @@ tell application "iTerm2"
     repeat with t in tabs of w
       repeat with s in sessions of t
         tell s
-          set ANSI green color to {45746, 8738, 8738}        -- #B22222 brick red (operator's pick)
-          set ANSI bright green color to {52685, 12850, 12850} -- #CD3232 lighter brick
+          set ANSI green color to {65535, 34695, 0}          -- #FF8700 orange (operator's pick 2026-07-05)
+          set ANSI bright green color to {65535, 41120, 12336} -- #FFA030 lighter orange
         end tell
       end repeat
     end repeat
