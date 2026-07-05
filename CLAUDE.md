@@ -394,7 +394,7 @@ Session end:    Update AI/state/STATE.md + AI/state/AI_AGENT_HANDOFF.md  →  ./
 Agent log:      Write to AI/logs/claude_log.md with timestamp
 ```
 
-**NEVER wait for the user to ask you to save state.** Update state/STATE.md after every significant action.
+**CHECKPOINT-AS-YOU-GO (AI_RULES §15, MANDATORY): after every merged PR / completed batch / operator decision, immediately update the handoff delta, append a brain atom, and push `chore: update state` (build-free). A session killed at any moment must cost ≤ ~15 min of context. NEVER wait for the user to ask you to save state.** Update state/STATE.md after every significant action.
 
 ### Two-tier state architecture (propagated from master 2026-05-19)
 

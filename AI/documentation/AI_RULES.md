@@ -378,3 +378,29 @@ our output must be eliminated at the source.
 * **When you add a new propagated JSON config:** wire it through `merge_json()` in
   `update_all.sh`. Tests: `scripts/tests/test_json_merge.sh` (17 assertions).
   LL: `LL/2026-07-02-updateall-json-clobber-deepmerge.md`.
+
+## 15. Checkpoint-as-you-go — the handoff is ALWAYS current, never end-loaded (fleet-wide, MANDATORY)
+
+> Operator directive 2026-07-05: sessions repeatedly hit token/credit limits BEFORE the
+> handoff/wrap-up was written, losing the session's context. The wrap-up ritual is a
+> CLOSE-OUT, not the first save. The AI decides when to checkpoint — continuously.
+
+**The rule — after EVERY completed unit of work** (a merged PR, a shipped/verified batch,
+an operator decision or directive, a diagnosed incident), IMMEDIATELY and without asking:
+
+1. **Update the handoff delta** — amend `state/AI_AGENT_HANDOFF.md`'s Last-session line /
+   ACTION block with what just landed and what's next. Small surgical edits, not rewrites.
+2. **Append a brain atom** (`brain commit` / session atom) for decisions and milestones —
+   atoms are ~free and auto-push to the brain remote (survives machine death instantly).
+3. **Commit + push `chore: update state`** to the working branch. State/AI commits are
+   BUILD-FREE at every gate (§CI-thrift v2: pre-push skips, Actions cheap, Vercel skips) —
+   there is no cost excuse for an unpushed handoff.
+
+**Token-guard checkpoints are MANDATORY interrupts, not suggestions.** When hook 15 emits
+`TOKEN GUARD: CHECKPOINT` (70% session budget), write + push the handoff before the next
+piece of work. At an account-limit death, a current handoff is the difference between a
+seamless resume and a blind session.
+
+**Rule of thumb: at ANY random moment, a kill -9 of the session should cost at most the
+last ~15 minutes of context.** If losing the session right now would lose more than that,
+you are overdue — checkpoint first.
