@@ -404,3 +404,46 @@ seamless resume and a blind session.
 **Rule of thumb: at ANY random moment, a kill -9 of the session should cost at most the
 last ~15 minutes of context.** If losing the session right now would lose more than that,
 you are overdue — checkpoint first.
+
+## 16. CI-thrift v2 — AI/docs-only changes are BUILD-FREE at all three gates (fleet-wide, MANDATORY)
+
+> Operator directive 2026-07-05: an AI/framework or docs commit must NEVER rebuild the
+> app stack. Framework propagation (`update_all.sh`), handoff/state pushes (§15), and doc
+> edits are high-frequency and touch no runtime code — paying a Docker build + Actions run +
+> Vercel deploy for each is pure credit burn. The **AI/docs set** —
+> `AI/  docs/  state/  logs/  .claude/  *.md` — is build-free at every gate.
+
+**The three gates, all skip AI/docs-only changes:**
+
+1. **Pre-push (local, per-machine).** The CI-THRIFT pre-push hook diffs exactly what is being
+   pushed against the remote base; if nothing outside the AI/docs set changed, it skips the
+   Docker gate entirely (`[pre-push] AI/docs-only push — skipping Docker gate`). State-only
+   commits (`chore: update state`) short-circuit even earlier. Installed/upgraded by
+   `rollout_ci_thrift.sh install_prepush()`.
+2. **GitHub Actions (`ci.yml`).** A `changes` job runs first and computes `outputs.code`
+   (`false` when only the AI/docs set changed). Every heavy job (`lint`/`type-check`/`test`/
+   `build`/`e2e`/…) carries `needs: changes` + `if: needs.changes.outputs.code == 'true'` and
+   **skips** for AI/docs-only PRs. Jobs that depend on a gated job cascade-skip automatically.
+   **NEVER use `paths-ignore` at the trigger level** — a required check that never posts a
+   conclusion leaves the PR BLOCKED forever. A *skipped* required check, by contrast, counts as
+   *satisfied* by branch protection, so the workflow still completes green and app-pinned
+   required checks stay happy. Carried by `templates/ci.yml`; injected into divergent managed
+   `ci.yml` files by `scripts/lib/ci_paths_gate.py` (surgical, comment-preserving, idempotent —
+   PyYAML is NOT used because it strips the fleet's comments).
+3. **Vercel (`vercel.json`).** `git.deploymentEnabled: {main:true, test:false, codeclot:false}`
+   (§11) plus a paths-aware `ignoreCommand`: build only when `VERCEL_GIT_COMMIT_REF == main`
+   **and** the `HEAD^..HEAD` diff touches something outside the AI/docs set (+ `.github`) —
+   else `echo skip-build:ai-docs-only; exit 0`. So even an AI/docs-only merge to `main` costs
+   zero deploys. Legacy branch-only `ignoreCommand`s are upgraded in place by
+   `rollout_ci_thrift.sh gate_vercel()`; never clobbers a repo's own monorepo/path filter.
+
+**Rollout & enforcement:** `./scripts/rollout_ci_thrift.sh --apply --commit` applies the proven
+gates (Vercel prod-gate, pre-push AI/docs skip, `on:`-rewrite) across the fleet; add `--ci-gate`
+to also inject the Actions paths gate into a repo's `ci.yml` (opt-in — validate the repo's first
+PR-to-main after enabling, since a wrong required-check config can hang PRs). Dry-run default;
+skips protected AI-folder-only / no-push repos. The
+vercel-gate guard hook (`hooks/session/19-vercel-gate-guard.sh`) still warns on any repo that
+lost its gate. Verify a repo with a dry-run before/after, then one AI-only PR (heavy jobs skip,
+workflow green) and one code PR (full matrix runs) through its CI. Composes with the Local-CI
+Policy (admin-merge when Actions is billing-blocked). This is why §15 can promise state/handoff
+pushes are free — they are, at every gate.

@@ -12,7 +12,7 @@
 | | Code repo | Brain |
 |---|---|---|
 | What | The project you're building | The operator's memory (atoms, briefs, stashes) |
-| Where | `~/Dropbox/...` or anywhere | `~/.myai/brain` (namespaced per repo inside) |
+| Where | anywhere on disk | `~/.myai/brain` (namespaced per repo inside) |
 | Syncs via | Its own git remote (+ Dropbox) | Its own git remote (`MYAI_BRAIN_REMOTE`) |
 | Source of truth for | Source code, state/, handoff | Cross-session memory, boot briefs, stashes |
 
