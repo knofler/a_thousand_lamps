@@ -3,7 +3,7 @@
 # Thin dispatcher over scripts/lib/brain.sh (the single source of truth);
 # `myai brain <cmd>` lands here via bin/myai.cjs. See plan/jam/brain-layer.md.
 #
-#   myai brain init [path] [--remote <url>]   create/adopt the brain repo
+#   myai brain init [path] [--remote <url>]   create/adopt the brain repo (no local dir + remote → clone)
 #   myai brain status                          where it lives, branch, atoms, stashes
 #   myai brain write <kind> <repo|-> <slug>    append one immutable atom (stdin)
 #   myai brain stash <slug> [repo]             freeze context on main (stdin) — resume anywhere

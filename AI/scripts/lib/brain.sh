@@ -70,13 +70,75 @@ _brain_sha8() {
 
 _brain_utc() { date -u +%Y%m%dT%H%M%SZ; }
 
+# ── remote auto-sync (push-on-merge / pull-on-boot) ──────────────────────────
+#
+# When the brain has an `origin` remote (e.g. a private github.com repo), sync
+# is INVISIBLE: merges and stashes push main, session boots do a bounded
+# fast-fail fetch + ff-only pull. Every network op is NON-FATAL — offline stays
+# first-class (documentation/BRAIN_OFFLINE.md); a failed push/pull just means
+# "sync next time". Bound: $BRAIN_NET_TIMEOUT seconds (default 2).
+# Node mirror: brainSyncPush/brainSyncPull in runtime/src/core/brain.ts.
+
+brain_remote_url() { git -C "${1:-$(brain_dir)}" remote get-url origin 2>/dev/null; }
+
+# _brain_net_git <dir> <args…> — a network git op against the brain, bounded so
+# an unreachable host can never hang a session boot. Prefers timeout/gtimeout;
+# otherwise falls back to git-level connect/low-speed limits.
+_brain_net_git() {
+  local d="$1" t="${BRAIN_NET_TIMEOUT:-2}"; shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$t" git -C "$d" "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$t" git -C "$d" "$@"
+  else
+    GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o ConnectTimeout=$t -o BatchMode=yes" \
+      git -C "$d" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime="$t" "$@"
+  fi
+}
+
+# brain_sync_push — push main to origin. No remote → silent no-op. Always rc 0.
+brain_sync_push() {
+  local d; d="$(brain_dir)"
+  brain_remote_url "$d" >/dev/null || return 0
+  if _brain_net_git "$d" push -q origin main >/dev/null 2>&1; then
+    echo "brain: pushed main to origin" >&2
+  else
+    echo "brain: push to origin failed (offline?) — will sync on the next merge/stash" >&2
+  fi
+  return 0
+}
+
+# brain_sync_pull — bounded fetch + ff-only advance of local main. Never merges
+# or rebases: diverged/dirty → no-op (the next push-on-merge reconciles). No
+# remote → silent no-op. Always rc 0.
+brain_sync_pull() {
+  local d; d="$(brain_dir)"
+  brain_remote_url "$d" >/dev/null || return 0
+  if ! _brain_net_git "$d" fetch -q origin main >/dev/null 2>&1; then
+    echo "brain: fetch from origin failed (offline?) — reading local main" >&2
+    return 0
+  fi
+  local cur; cur="$(git -C "$d" rev-parse --abbrev-ref HEAD)"
+  if [ "$cur" = "main" ]; then
+    if [ -z "$(git -C "$d" status --porcelain)" ]; then
+      git -C "$d" merge -q --ff-only origin/main >/dev/null 2>&1 || true
+    fi
+  else
+    # main not checked out → ff-only ref update (git refuses non-ff without +).
+    git -C "$d" fetch -q . refs/remotes/origin/main:refs/heads/main >/dev/null 2>&1 || true
+  fi
+  return 0
+}
+
 # ── init ─────────────────────────────────────────────────────────────────────
 
 # brain_init [path] [--remote <url>]
 # Creates the brain git repo (branch: main), seeds the layout, records the
 # pointer file so every agent/lib on this machine resolves the same brain.
 # Idempotent: an existing brain is adopted (pointer refreshed, remote added if
-# missing), never re-initialized.
+# missing), never re-initialized. --remote + no local dir → CLONE the remote
+# (one-command adoption on a new machine); an empty/unreachable remote falls
+# back to a fresh init, and a fresh init with a remote pushes main (non-fatal).
 brain_init() {
   local dir="" remote="" arg
   while [ $# -gt 0 ]; do
@@ -99,6 +161,26 @@ brain_init() {
     echo "brain: already initialized at $dir"
     return 0
   fi
+
+  # Remote given + no local dir → CLONE (new-machine adoption in one command;
+  # previously this was a manual `git clone`). A clone that doesn't produce a
+  # brain repo (empty remote) or fails (unreachable) falls through to fresh init.
+  if [ -n "$remote" ] && [ ! -e "$dir" ]; then
+    if git clone -q "$remote" "$dir" >/dev/null 2>&1 && brain_is_repo "$dir"; then
+      git -C "$dir" config user.name  "myai-brain"
+      git -C "$dir" config user.email "brain@myai.local"
+      git -C "$dir" config commit.gpgsign false
+      printf '%s\n' "$dir" > "$(brain_home)/brain.path"
+      echo "brain: cloned from $remote to $dir (branch: main)"
+      return 0
+    fi
+    # Clone of an EMPTY remote leaves a commit-less repo — pin HEAD to main so
+    # the fresh-init path below seeds the layout on the right branch.
+    if [ -d "$dir/.git" ] && ! git -C "$dir" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+      git -C "$dir" symbolic-ref HEAD refs/heads/main 2>/dev/null || true
+    fi
+  fi
+
   if [ -e "$dir" ] && [ -n "$(ls -A "$dir" 2>/dev/null)" ] && [ ! -d "$dir/.git" ]; then
     echo "brain_init: $dir exists and is not empty (and not a brain repo) — refusing" >&2
     return 1
@@ -133,9 +215,17 @@ EOF
   touch "$dir/memory/.gitkeep" "$dir/repos/.gitkeep"
   git -C "$dir" add -A
   git -C "$dir" commit -q -m "brain: init store (layout v1)"
-  [ -n "$remote" ] && git -C "$dir" remote add origin "$remote"
+  if [ -n "$remote" ] && ! git -C "$dir" remote get-url origin >/dev/null 2>&1; then
+    git -C "$dir" remote add origin "$remote"
+  fi
 
   printf '%s\n' "$dir" > "$(brain_home)/brain.path"
+  # First machine ever: seed the remote right away (non-fatal — offline just
+  # means the next merge/stash pushes instead).
+  if [ -n "$remote" ]; then
+    _brain_net_git "$dir" push -q -u origin main >/dev/null 2>&1 \
+      || echo "brain: initial push to $remote failed (offline/empty host?) — the next merge will push" >&2
+  fi
   echo "brain: initialized at $dir (branch: main)"
 }
 
@@ -371,6 +461,8 @@ brain_session_start() {
   local profile; profile="$(_brain_slugify "${1:-${BRAIN_PROFILE:-cli}}")"
   local d; d="$(brain_dir)"
   brain_is_repo "$d" || { echo "brain_session_start: no brain repo at $d — run 'myai brain init'" >&2; return 1; }
+  # Pull-on-boot: catch up main from origin before branching (bounded, non-fatal).
+  brain_sync_pull
   local branch="session/$(date -u +%Y%m%d)-$(brain_host)-$profile"
   if git -C "$d" show-ref --verify --quiet "refs/heads/$branch"; then
     git -C "$d" checkout -q "$branch"
@@ -410,6 +502,8 @@ brain_session_merge() {
   # Compile-at-write (BRAIN B3): the merge IS the write — regenerate the
   # compiled artifacts on main right here (extractive, zero LLM tokens).
   brain_distill || true
+  # Push-on-merge: mirror the new main to origin (bounded, non-fatal).
+  brain_sync_push
   echo "brain: merged $branch into main"
 }
 
@@ -586,6 +680,8 @@ brain_stash() {
   git -C "$d" add "$rel"
   git -C "$d" commit -q -m "brain(stash): $slug"
   [ "$from" = "main" ] || git -C "$d" checkout -q "$from"
+  # Stash pushes IMMEDIATELY — its whole point is cross-device resume.
+  brain_sync_push
   echo "brain: stashed '$slug' on main — pop from any session/device" >&2
   printf '%s\n' "$rel"
 }

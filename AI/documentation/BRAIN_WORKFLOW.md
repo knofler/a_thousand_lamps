@@ -23,8 +23,9 @@ falls back to the handoff store automatically when no brain exists on a machine.
 ## One-time per machine
 
 1. Install the framework: `npm i -g @knofler/ai-management` (or use the master checkout).
-2. Get the brain: `git clone $MYAI_BRAIN_REMOTE ~/.myai/brain`
-   (very first machine ever: `myai brain init --remote <url>` then push).
+2. Get the brain: `myai brain init --remote "$MYAI_BRAIN_REMOTE"` — no local brain yet →
+   it CLONES the remote (one command, nothing manual); very first machine ever → it
+   creates the store and seeds the remote with an initial push.
 3. Verify: `myai doctor` (checks gateway, brain freshness, Ollama fallback).
 
 ## Work on an EXISTING repo that already has the framework (`AI/` folder)
@@ -49,14 +50,20 @@ falls back to the handoff store automatically when no brain exists on a machine.
 
 1. Morning: `agent mode -min` → brain delta + handoff = context in seconds.
 2. Work; ship with `ship it`.
-3. Evening: `wrap up` → session atom + brain merge (+ push once auto-sync is live).
+3. Evening: `wrap up` → session atom + brain merge — the merge auto-pushes brain
+   main to the remote (bounded, non-fatal when offline).
 
 ## Switching MACHINES (multi-machine)
 
-1. Machine A, before leaving: `wrap up` (clean) or `brain stash <slug>` (mid-task freeze).
-   Until auto-sync ships: `git -C ~/.myai/brain push`.
-2. Machine B: `git -C ~/.myai/brain pull` (auto once auto-sync ships), then
-   `agent mode` in the same repo — or `brain pop <slug>` to resume the frozen context.
+Sync is AUTOMATIC once the brain has an `origin` remote: merges and stashes push
+main; boots (`context_boot` / `brain_delta` / session start) do a bounded 2s
+fast-fail fetch + ff-only pull before reading. Offline stays first-class — a
+failed push/pull is a reported no-op, never an error (`BRAIN_OFFLINE.md`).
+
+1. Machine A, before leaving: `wrap up` (clean) or `brain stash <slug>` (mid-task
+   freeze — the stash pushes immediately; cross-device resume is its whole point).
+2. Machine B: `agent mode` in the same repo — the boot pulls the latest brain main
+   automatically; or `brain pop <slug>` to resume the frozen context.
 3. Code changes travel via the CODE repo's remote/Dropbox as always; the brain only
    carries memory. Never put the brain inside Dropbox.
 

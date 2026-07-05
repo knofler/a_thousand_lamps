@@ -55,7 +55,10 @@ errors, and no double-dispatch when ollama is already in the chain.
 ## Layer 3 — Degraded-read (no server at all)
 
 Reading the brain requires **no gateway, no node, no stack** — the compiled
-artifacts are plain files checked into brain `main` (compile-at-write, B3):
+artifacts are plain files checked into brain `main` (compile-at-write, B3).
+(When the stack IS up, this pull happens for you: merges/stashes auto-push and
+boots auto-pull with a bounded 2s fast-fail — see BRAIN_WORKFLOW.md; the manual
+pull below is the zero-runtime path.)
 
 ```bash
 # on any machine with the brain remote configured:
