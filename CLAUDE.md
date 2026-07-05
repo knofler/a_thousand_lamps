@@ -396,6 +396,8 @@ Agent log:      Write to AI/logs/claude_log.md with timestamp
 
 **CHECKPOINT-AS-YOU-GO (AI_RULES §15, MANDATORY): after every merged PR / completed batch / operator decision, immediately update the handoff delta, append a brain atom, and push `chore: update state` (build-free). A session killed at any moment must cost ≤ ~15 min of context. NEVER wait for the user to ask you to save state.** Update state/STATE.md after every significant action.
 
+**Mechanical enforcement (auto — you will see these):** three hooks back §15 so it never depends on memory. `hooks/post-tool/06-handoff-staleness.sh` emits a **`CHECKPOINT OVERDUE`** box when `AI/state/AI_AGENT_HANDOFF.md` is >~30 min stale AND ≥40 weighted tool calls have accrued since the last write — treat it as a MANDATORY interrupt: write + **push** the handoff before the next unit of work. `hooks/pre-tool/15-token-budget-guard.sh` fires a `TOKEN GUARD: CHECKPOINT` box at 70% session-token burn (same mandate). `hooks/stop/04-handoff-staleness.sh` shouts a LOUD red at session close if the handoff is stale with unsaved work. All three are warn-only (never block) and tunable via `AI/config/session-limits.json` → `autosave`.
+
 ### Two-tier state architecture (propagated from master 2026-05-19)
 
 State files have a **hot tier** (always-loaded) and a **cold tier** (load-on-demand):

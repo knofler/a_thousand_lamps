@@ -389,6 +389,16 @@
             "timeout": 3000
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./hooks/post-tool/06-handoff-staleness.sh",
+            "timeout": 10000
+          }
+        ]
       }
     ],
     "Notification": [
@@ -421,6 +431,11 @@
             "type": "command",
             "command": "./hooks/stop/03-session-dashboard.sh",
             "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "./hooks/stop/04-handoff-staleness.sh",
+            "timeout": 8000
           },
           {
             "type": "command",

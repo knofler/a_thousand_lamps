@@ -121,11 +121,13 @@ if [ "$sess_pct" -ge "$SESS_CHECKPOINT" ] 2>/dev/null && [ "$checkpointed" != "1
   echo "╠══════════════════════════════════════════════════════════════╣"
   echo "║  Session output: ${SESS_OUT} / ${SESS_BUDGET} tokens"
   echo "║"
-  echo "║  MANDATORY (do this NOW, before the next heavy step):"
+  echo "║  MANDATORY (AI_RULES §15 — do this NOW, before the next step):"
   echo "║    Write state/AI_AGENT_HANDOFF.md with done / in-progress"
-  echo "║    (branch + uncommitted) / next / blockers. Commit it."
+  echo "║    (branch + uncommitted) / next / blockers, then COMMIT AND"
+  echo "║    PUSH 'chore: update state'. State pushes are BUILD-FREE at"
+  echo "║    every gate (§16) — an unpushed handoff dies with the machine."
   echo "║  This is a SAVE POINT, not a stop. If the account rolling-window"
-  echo "║  limit is hit mid-task, you can resume from the handoff."
+  echo "║  limit is hit mid-task, you can resume from the pushed handoff."
   echo "╚══════════════════════════════════════════════════════════════╝"
   checkpointed=1
   emitted=1

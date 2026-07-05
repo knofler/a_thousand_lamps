@@ -35,5 +35,14 @@
       "interval_minutes": 2,
       "floor_percent": 70
     }
+  },
+
+  "autosave": {
+    "_comment": "Mechanical enforcement of AI_RULES §15 (checkpoint-as-you-go — the handoff is ALWAYS current, never end-loaded). Operator directive 2026-07-05: 'credit ended and no handoff existed; AI should make the call and constantly auto-save.' Three hooks read these thresholds: hooks/post-tool/06-handoff-staleness.sh (throttled warn-only CHECKPOINT-OVERDUE box), hooks/pre-tool/15-token-budget-guard.sh (70% checkpoint box), and hooks/stop/04-handoff-staleness.sh (LOUD red at session close). stale_minutes = how old the handoff mtime may get; min_weighted_since = weighted tool calls (same weights as the Usage Guard) accrued since the last handoff write before the box fires — BOTH must be true. throttle_minutes throttles the overdue box so it nags without spamming. brain_atom=true appends a free NO-LLM auto brain atom (kind=session, slug=autosave) when overdue, if a brain store exists (auto-pushes; survives machine death). Warn-only — never blocks a tool.",
+    "enabled": true,
+    "stale_minutes": 30,
+    "min_weighted_since": 40,
+    "throttle_minutes": 5,
+    "brain_atom": true
   }
 }
