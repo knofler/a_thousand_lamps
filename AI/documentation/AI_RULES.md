@@ -447,3 +447,63 @@ lost its gate. Verify a repo with a dry-run before/after, then one AI-only PR (h
 workflow green) and one code PR (full matrix runs) through its CI. Composes with the Local-CI
 Policy (admin-merge when Actions is billing-blocked). This is why §15 can promise state/handoff
 pushes are free — they are, at every gate.
+
+## 17. Actions credit is scarce — strict PR discipline + no-review-for-docs (fleet-wide, MANDATORY)
+
+> Operator ran OUT of GitHub Actions credit for a whole day (2026-07-05). §16 made
+> AI/docs-only changes build-free, but every *PR* still triggers the check + review
+> workflows once, and a PR-per-tiny-change multiplies that. Enforce mechanically.
+
+**1. Docs go DIRECT to main; code goes via a (batched) PR. NEVER a PR for docs.**
+Docs / AI_RULES / plans / ADRs / state / logs are docs-safe and **push directly to
+`main`** — a direct push triggers ZERO check workflows (all are PR-to-main only) and
+needs no Copilot/test/build, yet lands on main so **every other machine's `agent mode`
+(which pulls main) sees the new docs immediately.** `hooks/pre-tool/01-block-push-main.sh`
+permits this for the docs-safe fileset and blocks any push that also touches code.
+Session/handoff continuity ALSO travels cross-machine via the brain auto-sync (§brain),
+independent of the code repo. **App / runtime / hook / script / workflow / config code**
+goes to `test` then a **single batched PR** to main (fold any accompanying docs in) —
+never a PR-per-change, never a standalone PR for a one-line doc/hook change.
+
+**2. Copilot NEVER reviews docs/AI-only PRs.** The Copilot-review workflow carries the
+same §16 `changes` gate — `if: needs.changes.outputs.code == 'true'`. No code delta →
+no review. (If Copilot runs as the repo auto-review APP rather than a workflow, disable
+auto-review and request it manually only on code PRs.)
+
+**3. No test/build workflow runs for docs.** Every check workflow (merge-gate, fleet-
+smoke, script-unit-tests, ci, docs) uses the §16 `changes`-job + per-job `if:` skip —
+NEVER `paths-ignore` at the trigger (that hangs required checks). A docs-only PR runs
+only the cheap `changes` detector; every heavy/review job skips but the workflow still
+completes green so required checks stay satisfied.
+
+**4. Docs / AI changes NEVER build Vercel — production OR preview.** `vercel.json`'s
+`ignoreCommand` skips EVERY non-main ref (so no preview build is created on any docs/
+branch push) AND skips main commits whose diff is docs/AI-only (§16 paths-gate). A docs or
+`AI_RULES` change must never produce a preview or a production deployment — it is *just
+docs*. (Proven live: docs/state merges log `skip-build` instead of building.) Non-Next /
+no-app repos additionally carry `deploymentEnabled` all-false so there is no project churn.
+
+**5. Billing-blocked mode (Actions credit exhausted).** When credit is out: FREEZE PRs —
+accumulate on `test`. If a merge is genuinely urgent, verify locally (`local-ci.sh`) and
+`gh pr merge --admin` per the Local-CI Policy. Never wait on Actions that cannot run.
+
+**Enforcement is hook + workflow level, not agent discipline** (shipped mechanically):
+
+- **PR-creation guard — `scripts/pr_guard.sh`.** `ship it` / any `gh pr create` flow runs it
+  first; it diffs HEAD vs `origin/main` (non-code set `AI/ docs/ state/ logs/ .claude/ hooks/
+  config/ *.md`) and **REFUSES (exit 2)** a docs/AI/hook/config-only PR — override
+  `PR_GUARD_FORCE=1` for a genuine standalone infra fix. (§17.1)
+- **All check + review workflows carry the §16 `changes`-gate.** `scripts/lib/ci_paths_gate.py`
+  now also gates a single-job `if:`-only workflow (the Copilot/Claude review shape) by merging
+  `needs.changes.outputs.code == 'true' && (<orig if>)` — so merge-gate / fleet-smoke /
+  script-unit-tests / ci / copilot-review / claude-review all skip their heavy/review job on a
+  docs-only PR while the workflow still completes green (required checks stay satisfied). NEVER
+  `paths-ignore` at the trigger. (§17.2/.3)
+- **Copilot auto-review APP** (if enabled outside the workflow) — audit + disable with
+  `scripts/disable_copilot_autoreview.sh`; see `documentation/BLUEPRINT_ORG_SETUP.md` §4a. (§17.2)
+- **Vercel** — `rollout_ci_thrift.sh gate_vercel()` sets non-Next/Docker-only repos to
+  `deploymentEnabled` all-false and web repos to build-only-main + AI/docs-skip `ignoreCommand`. (§17.4)
+- **Rollout:** `./scripts/rollout_ci_thrift.sh --apply --ci-gate` gates EVERY PR-triggered
+  workflow in a repo (not just `ci.yml`); propagated fleet-wide with `update_all`. `--ci-gate`
+  stays opt-in per repo (validate the first PR-to-main after enabling). Covered by
+  `scripts/tests/test_ci_paths_gate.sh` + `test_pr_guard.sh`.
