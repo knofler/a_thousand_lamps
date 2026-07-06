@@ -790,6 +790,126 @@ brain_revert() {
   echo "brain: reverted $full → $(git -C "$d" rev-parse HEAD) (inverse commit)"
 }
 
+# ── gc: compact the store (dedup / prune / repack) ───────────────────────────
+#
+# The brain grows unbounded: two-host merges land byte-identical atoms under
+# different <ts>-<host>- prefixes, `brain init` scaffolds namespaces that never
+# receive an atom, stashes get frozen and never popped, and git's loose-object
+# count climbs. `brain_gc` bounds that growth WITHOUT ever rewriting history or
+# mutating an atom's content — it only removes provably-redundant files with
+# normal (revertable) commits, then repacks:
+#   • atom dedup     — files sharing (dir, slug, content-sha8) collapse to the
+#                      earliest; the survivor is byte-identical so recall is
+#                      unchanged (same contract brain_atom_write enforces on a
+#                      single branch, applied across merged histories)
+#   • orphan prune   — repos/<ns>/ namespaces with zero session+handoff atoms
+#                      (scaffolding only — brief/working are uncompiled stubs)
+#   • stash prune    — stashes frozen more than <stash-age> days ago (default
+#                      30) and never popped — abandoned resume points
+#   • repack         — `git gc --prune=now` folds loose objects + drops the now
+#                      -unreachable blobs, bounding .git growth
+# --dry-run prints the plan and reclaims nothing. Node mirror: brainGc() in
+# runtime/src/core/brain.ts. Round-trip safe: everything it removes is either a
+# byte-identical duplicate or an empty/expired pointer.
+brain_gc() {
+  local dry=0 stash_age=30
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --dry-run|-n) dry=1 ;;
+      --stash-age)  stash_age="${2:?--stash-age needs a value}"; shift ;;
+      --stash-age=*) stash_age="${1#*=}" ;;
+      *) echo "brain_gc: unknown option '$1'" >&2; return 2 ;;
+    esac
+    shift
+  done
+  case "$stash_age" in ''|*[!0-9]*) echo "brain_gc: --stash-age must be a whole number of days" >&2; return 2 ;; esac
+  local d; d="$(brain_dir)"
+  brain_is_repo "$d" || { echo "brain_gc: no brain repo at $d — run 'myai brain init'" >&2; return 1; }
+  _brain_require_clean || return 1
+
+  local size_before; size_before="$(du -sk "$d/.git" 2>/dev/null | cut -f1)"; size_before="${size_before:-0}"
+
+  # ── plan: atom dedup — group live atoms by (dir, slug, content-sha8) ─────────
+  # The filename's trailing -<sha8>.md IS sha8(body) and the frontmatter carries
+  # the slug, so the key needs no fragile host/slug boundary parsing. Sorting
+  # filenames ascending keeps the earliest (ts prefix sorts chronologically).
+  local plan; plan="$(mktemp -t brain-gc.XXXXXX)"
+  local remove_atoms; remove_atoms="$(mktemp -t brain-gc.XXXXXX)"
+  local reldir f slug sha key prevkey=""
+  for reldir in memory $(cd "$d" && ls -d repos/*/sessions repos/*/handoffs 2>/dev/null); do
+    [ -d "$d/$reldir" ] || continue
+    for f in $(cd "$d/$reldir" && ls *.md 2>/dev/null | grep -v '^\.gitkeep$' | sort); do
+      slug="$(sed -n 's/^slug: //p' "$d/$reldir/$f" | head -1)"
+      sha="$(printf '%s\n' "$f" | sed -E 's/.*-([0-9a-f]{8})\.md$/\1/')"
+      printf '%s\t%s\n' "$reldir|$slug|$sha" "$reldir/$f" >> "$plan"
+    done
+  done
+  # Emit the 2nd+ file of each key as a removal (LC_ALL=C for a stable sort).
+  LC_ALL=C sort "$plan" | while IFS="$(printf '\t')" read -r key path; do
+    if [ "$key" = "$prevkey" ]; then printf '%s\n' "$path" >> "$remove_atoms"; fi
+    prevkey="$key"
+  done
+  local dup_count; dup_count="$(wc -l < "$remove_atoms" | tr -d ' ')"
+
+  # ── plan: orphan namespaces — repos/<ns>/ with zero session+handoff atoms ────
+  local remove_ns; remove_ns="$(mktemp -t brain-gc.XXXXXX)"
+  local ns nspath atoms
+  for nspath in $(cd "$d" && ls -d repos/*/ 2>/dev/null); do
+    ns="${nspath%/}"
+    atoms="$(find "$d/$ns/sessions" "$d/$ns/handoffs" -name '*.md' ! -name '.gitkeep' 2>/dev/null | wc -l | tr -d ' ')"
+    [ "$atoms" = "0" ] && printf '%s\n' "$ns" >> "$remove_ns"
+  done
+  local ns_count; ns_count="$(wc -l < "$remove_ns" | tr -d ' ')"
+
+  # ── plan: abandoned stashes — frozen > stash_age days ago, never popped ──────
+  local remove_stash; remove_stash="$(mktemp -t brain-gc.XXXXXX)"
+  local now cutoff s ct
+  now="$(date -u +%s)"; cutoff=$(( now - stash_age * 86400 ))
+  for s in $(brain_stash_list); do
+    ct="$(git -C "$d" log -1 --format=%ct -- "$s" 2>/dev/null)"
+    [ -n "$ct" ] && [ "$ct" -lt "$cutoff" ] && printf '%s\n' "$s" >> "$remove_stash"
+  done
+  local stash_count; stash_count="$(wc -l < "$remove_stash" | tr -d ' ')"
+
+  echo "brain gc: $d"
+  echo "  duplicate atoms:     $dup_count"
+  echo "  orphan namespaces:   $ns_count"
+  echo "  abandoned stashes:   $stash_count (> ${stash_age}d)"
+
+  if [ "$dry" = "1" ]; then
+    echo "  mode:                DRY RUN (nothing removed, store untouched)"
+    [ "$dup_count" != "0" ]   && { echo "  would dedup:";   sed 's/^/    - /' "$remove_atoms"; }
+    [ "$ns_count" != "0" ]    && { echo "  would prune ns:"; sed 's/^/    - /' "$remove_ns"; }
+    [ "$stash_count" != "0" ] && { echo "  would prune stash:"; sed 's/^/    - /' "$remove_stash"; }
+    rm -f "$plan" "$remove_atoms" "$remove_ns" "$remove_stash"
+    return 0
+  fi
+
+  # ── apply: remove on main with normal (revertable) commits, then repack ──────
+  local from; from="$(git -C "$d" rev-parse --abbrev-ref HEAD)"
+  [ "$from" = "main" ] || git -C "$d" checkout -q main
+  local removed=0
+  if [ "$dup_count" != "0" ] || [ "$ns_count" != "0" ] || [ "$stash_count" != "0" ]; then
+    while IFS= read -r path; do [ -n "$path" ] && git -C "$d" rm -q -- "$path" && removed=1; done < "$remove_atoms"
+    while IFS= read -r ns;   do [ -n "$ns" ]   && git -C "$d" rm -q -r -- "$ns" && removed=1; done < "$remove_ns"
+    while IFS= read -r s;    do [ -n "$s" ]    && git -C "$d" rm -q -- "$s"  && removed=1; done < "$remove_stash"
+    if [ "$removed" = "1" ]; then
+      git -C "$d" commit -q -m "brain(gc): dedup $dup_count atoms · prune $ns_count ns · $stash_count stash"
+    fi
+  fi
+  # Repack even when nothing was removed — loose objects still accrue from every
+  # atom commit; --prune=now drops the blobs the removals just made unreachable.
+  git -C "$d" gc --prune=now --quiet 2>/dev/null || git -C "$d" gc --quiet 2>/dev/null || true
+  [ "$from" = "main" ] || git -C "$d" checkout -q "$from"
+  brain_sync_push
+
+  local size_after; size_after="$(du -sk "$d/.git" 2>/dev/null | cut -f1)"; size_after="${size_after:-0}"
+  local reclaimed=$(( size_before - size_after )); [ "$reclaimed" -lt 0 ] && reclaimed=0
+  echo "  reclaimed:           ${reclaimed} KB (.git ${size_before}K → ${size_after}K)"
+  rm -f "$plan" "$remove_atoms" "$remove_ns" "$remove_stash"
+  return 0
+}
+
 # ── status ───────────────────────────────────────────────────────────────────
 
 brain_status() {

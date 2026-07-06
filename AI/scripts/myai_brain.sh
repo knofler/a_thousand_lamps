@@ -19,6 +19,7 @@
 #   myai brain distill [ns …]                  recompile brief/working/rollup on main
 #   myai brain blame <code-sha|brain-ref>      code↔memory provenance, both directions
 #   myai brain revert <sha>                    undo a commit with an inverse commit
+#   myai brain gc [--dry-run] [--stash-age N]  compact: dedup atoms, prune orphans/old stashes, repack
 #   myai brain stamp <code-dir> <repo> <slug> [sha…]  stamp session atom + git notes (stdin)
 #
 # `merge` auto-runs the distiller (compile-at-write, BRAIN B3) — `distill` is
@@ -30,7 +31,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=lib/brain.sh
 . "$HERE/lib/brain.sh"
 
-usage() { sed -n '6,22p' "$0" | sed 's/^# \{0,3\}//'; }
+usage() { sed -n '6,23p' "$0" | sed 's/^# \{0,3\}//'; }
 
 cmd="${1:-}"; shift 2>/dev/null || true
 case "$cmd" in
@@ -56,6 +57,7 @@ case "$cmd" in
   distill)  brain_distill "$@" ;;
   blame)    brain_blame "$@" ;;
   revert)   brain_revert "$@" ;;
+  gc)       brain_gc "$@" ;;
   stamp)    brain_stamp_code "$@" ;;
   ''|help|-h|--help) usage ;;
   *) echo "myai brain: unknown command '$cmd'" >&2; usage >&2; exit 2 ;;
