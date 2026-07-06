@@ -23,15 +23,23 @@ Wrap up the current work session and persist all context.
 - Add any new items discovered during the session.
 - Update the `Last Updated` timestamp.
 
-### 3. Update state/AI_AGENT_HANDOFF.md
+### 3. Update state/AI_AGENT_HANDOFF.md — a TRIMMED DELTA, not a full rewrite (TOKEN-OPT 3)
+
+> **The brain atom (`wrap up` step 1e) is the PRIMARY continuity record** — the full session
+> narrative lives there and every next session boots it via `brain_delta`. This handoff file is
+> now only the offline / any-device **fallback**. So write it thin: a delta, not a fresh essay.
 
 - Open `AI/state/AI_AGENT_HANDOFF.md`.
 - Update the `Last machine:` field with the current hostname (`hostname -s`).
-- Write context the next session needs to pick up seamlessly:
-  - What was the focus of this session?
-  - What is the immediate next step?
-  - Are there any open questions or pending decisions?
-  - Any gotchas or non-obvious context?
+- Update the header `Brain: <sha>` line with the anchor returned by `brain_sync_verify.sh`
+  (written in `wrap up` step 1e — this is the next session's `brain_delta` anchor).
+- Update the **`ACTION for next agent`** block — the single most important field: what to do next.
+- **Prepend ONE new session summary line** (2–4 sentences: what shipped / decisions / next / blockers)
+  and keep **only the top-3** most-recent session lines inline. Do NOT re-emit older lines — leave
+  them for `rotate_state.sh` (TOKEN-OPT 1) to archive to `state/archive/handoff-YYYY-MM.md`.
+- Result target: header + ACTION + top-3 lines (a few KB), never the full ~28k-token history.
+- Everything the delta omits is recoverable from the brain (`brain_delta` / `brain log`) and the
+  handoff archive — so the trim loses nothing, it just stops paying to re-read history every boot.
 
 ### 4. Log to logs/claude_log.md
 
