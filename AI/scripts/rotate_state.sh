@@ -172,8 +172,14 @@ fi
 if [ -f "$HANDOFF" ]; then
     HANDOFF_BYTES=$(wc -c < "$HANDOFF" | tr -d ' ')
     if [ "$HANDOFF_BYTES" -gt "$HANDOFF_MAX_BYTES" ]; then
-        echo "HANDOFF.md is ${HANDOFF_BYTES}B (>${HANDOFF_MAX_BYTES}B) — trim 'Prior last work' lines manually or rotate archive."
-        echo "  (handoff auto-trim not implemented — too contextual; flag only)"
+        echo "HANDOFF.md is ${HANDOFF_BYTES}B (>${HANDOFF_MAX_BYTES}B) — auto-trimming (TOKEN-OPT 1)…"
+        # Keep header + top-N recent `> ` sessions + meta lines + the ACTION
+        # section; append the older session history to the month archive.
+        # Safe: no-op if the ACTION section is missing or nothing to archive.
+        HANDOFF_ARCHIVE="$ARCHIVE_DIR/handoff-$(date +%Y-%m).md"
+        PY="$(command -v python3 || echo /usr/bin/python3)"
+        "$PY" "$SCRIPT_DIR/lib/trim_handoff.py" "$HANDOFF" "$HANDOFF_ARCHIVE" "${HANDOFF_KEEP_SESSIONS:-3}" | sed 's/^/  /'
+        echo "  New HANDOFF.md size: $(wc -c < "$HANDOFF" | tr -d ' ')B"
     else
         echo "HANDOFF.md within thresholds — OK."
     fi
