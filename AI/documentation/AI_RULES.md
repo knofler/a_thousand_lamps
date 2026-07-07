@@ -507,3 +507,46 @@ accumulate on `test`. If a merge is genuinely urgent, verify locally (`local-ci.
   workflow in a repo (not just `ci.yml`); propagated fleet-wide with `update_all`. `--ci-gate`
   stays opt-in per repo (validate the first PR-to-main after enabling). Covered by
   `scripts/tests/test_ci_paths_gate.sh` + `test_pr_guard.sh`.
+
+---
+
+## 18. Claude profile allocation + session-boot cost ceiling (fleet-wide, MANDATORY)
+
+> Operator is running 3 Claude profiles simultaneously and hit budget pain on all 3 at once
+> (2026-07-07): `claude-tech` weekly allowance 97% used (resets Saturday), `claude-museum`
+> burned $1050 in 2 days, and the personal `claude` (Pro subscription) profile has limited
+> interactive runway. All three burning at once means the allocation below is not optional.
+
+**1. Profile roles — do not blur them.**
+- **`claude-tech`** — the **runner profile**. Idle/after-hours + weekend autonomous work
+  only. **Runner defaults to `claude-sonnet-5`, Sonnet-tier fallback chain, NO Opus/Fable**,
+  unless a specific task genuinely needs a stronger model (already enforced in
+  `cli_task_runner.sh` + `machine_selfheal.sh`, PR #352).
+- **`claude-museum`** — **mobile/remote-control of the master repo (`ai_management`) only** —
+  i.e. instructing/directing work from a phone, not running heavy autonomous multi-agent
+  work itself. Treat it as a light dispatch channel, not a compute profile.
+- **`claude`** (default/personal, Pro subscription) — the **fallback profile**, used when the
+  other two are unavailable or exhausted (this session is an example). Its capacity is a
+  fixed Pro-plan allowance, not API-metered — the scarcest of the three for casual burning.
+
+**2. Model choice for INTERACTIVE sessions (operator actively driving, not the runner):
+default to Opus.** This is orthogonal to profile — Opus is for response quality when a human
+is in the loop; Sonnet-only is a **runner-specific** rule (rule 1), not a blanket ceiling on
+every session. Model pin lives in `.claude/settings.local.json` (`"model"` key) — verify it
+matches intent before assuming which model is actually active; `/model` sets the *next new
+session* default but a project-level pin in `settings.local.json` overrides on restart. If the
+two disagree, surface it — do not silently pick one.
+
+**3. Session-boot token ceiling — brain/cache must actually carry history, not raw re-reads.**
+The brain-atom system (`brain_delta`) exists precisely so `agent mode` / `-a` / `-min` never
+re-read `STATE.md` / `AI_AGENT_HANDOFF.md` / protocol docs wholesale — verified cost as low as
+~34 tokens for an up-to-date `brain_delta` call. When boot still costs tens of thousands of
+tokens, the leak is almost always ONE of: (a) a broken trim/rotation mechanism letting a
+fallback file balloon unbounded (see `scripts/lib/trim_handoff.py` — the ACTION section was
+exempt from trimming for ~2 weeks before the 2026-07-07 fix, 70KB→14KB), or (b) the agent
+re-running an expensive command (a fleet-wide `update_all.sh` sweep, a full protocol-doc read)
+more than once instead of capturing output once and extracting what's needed. **Full swarm
+dispatch / fleet-wide `update_all.sh` is opt-in busy-work, not a rote default step of every
+`agent mode -a`** — reserve it for when the task actually needs the fleet touched. Prefer a
+`-min`-style brain-first boot by default; escalate to reading `CORE_KEYWORDS.md` / `STATE.md`
+/ full fleet sweeps only when the task genuinely requires it.
