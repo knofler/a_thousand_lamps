@@ -574,3 +574,16 @@ runner self-skips the fire (`credit pacing: … reached`, visible on `/schedule`
 no spend. Bypass with `--force`/`FORCE_RUN=1`/`--task-id`; disable with `RUNNER_PACING=off`.
 Ledger is machine-local (`~/.ai-cli-runner/pacing/`, never in git). Tests:
 `scripts/tests/test_runner_pacing.sh` (17 cases).
+
+**5. Trivial → local tier — free grunt on local Ollama (2026-07-12).** Below the Sonnet
+tier sits an optional **free** tier: a genuinely mechanical task (title/desc matches
+`TRIVIAL_KEYWORDS` — chore/docs/format/lint/bump/rename/typo/comment/changelog/readme) runs
+on a local Ollama model (`LOCAL_MODEL`, default `qwen2.5-coder:7b`) FIRST, with Sonnet as
+fallback — and a local success is **not charged to the pacing budget** (§18.4). Escalation
+(failure→Opus) always wins over trivial-routing. **DEFAULT OFF** (`RUNNER_LOCAL_TIER=off` in
+`config/runner_budget.conf`): enable only after confirming `claude -p --model qwen2.5-coder:7b`
+runs headlessly on the claude-tech profile (needs Claude Code's Ollama integration set up).
+Low-risk to enable — if the local model fails the task it's released back to `pending` for
+Sonnet next fire, and the safety hooks apply throughout. Full model ladder now:
+**local qwen (trivial, free) → Sonnet 5 (default) → Opus 4.8 (failure-gated, capped)**, all
+under the daily/weekly credit pacing. Tests: `scripts/tests/test_runner_local_tier.sh` (8 cases).
