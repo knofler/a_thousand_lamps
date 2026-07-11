@@ -519,9 +519,17 @@ accumulate on `test`. If a merge is genuinely urgent, verify locally (`local-ci.
 
 **1. Profile roles — do not blur them.**
 - **`claude-tech`** — the **runner profile**. Idle/after-hours + weekend autonomous work
-  only. **Runner defaults to `claude-sonnet-5`, Sonnet-tier fallback chain, NO Opus/Fable**,
-  unless a specific task genuinely needs a stronger model (already enforced in
-  `cli_task_runner.sh` + `machine_selfheal.sh`, PR #352).
+  only. **Runner defaults to `claude-sonnet-5`, Sonnet-tier fallback chain, NO speculative
+  Opus/Fable** (enforced in `cli_task_runner.sh` + `machine_selfheal.sh`, PR #352).
+  **Failure-gated Opus escalation (2026-07-11):** Opus is reached ONLY as a capped last
+  resort — a task that genuinely fails (`→ blocked`, not a trust/limit/resource-cap release)
+  `ESCALATE_AFTER_FAILS` times on Sonnet (default 2) is promoted to `ESCALATION_MODEL`
+  (`claude-opus-4-8`) for its next attempt, subject to a hard `OPUS_DAILY_CAP` (default 2
+  Opus tasks / Sydney-day) and at most ONE Opus attempt per task. The ledger is machine-local
+  (`~/.ai-cli-runner/escalation/`, never in the git tree). Disable with `RUNNER_ESCALATION=off`.
+  This is the durable fix for the weekend Fable/Opus burn that torched a week of credit —
+  Opus never runs speculatively, only after Sonnet has demonstrably failed. Tests:
+  `scripts/tests/test_runner_escalation.sh` (17 cases).
 - **`claude-museum`** — **mobile/remote-control of the master repo (`ai_management`) only** —
   i.e. instructing/directing work from a phone, not running heavy autonomous multi-agent
   work itself. Treat it as a light dispatch channel, not a compute profile.
@@ -550,3 +558,19 @@ dispatch / fleet-wide `update_all.sh` is opt-in busy-work, not a rote default st
 `agent mode -a`** — reserve it for when the task actually needs the fleet touched. Prefer a
 `-min`-style brain-first boot by default; escalate to reading `CORE_KEYWORDS.md` / `STATE.md`
 / full fleet sweeps only when the task genuinely requires it.
+
+**4. Autonomous credit pacing — a weekend must not drain the week (2026-07-11).** The
+off-hours window *permits* weekend runs but never capped them; the only stop was the
+reactive credit-exhaustion cooldown (i.e. the wall). That let a deep queue front-load a
+whole week's credit on a free weekend and starve weekday interactive sessions. Fixed with a
+dual-cap pacing throttle in `cli_task_runner.sh` (config: `config/runner_budget.conf`,
+Dropbox-synced): a **DAILY spread cap** (a weekend can spend at most 2× the daily cap, never
+the week) and a **WEEKLY reserve cap** (runner gets ~1/3 of the weekly `claude-tech`
+allowance; 2/3 is protected for interactive). Caps run in **session-count** (always on, each
+Sonnet session bounded by `MAX_MINUTES`) and **output-token** units (precision layer, set
+`AUTO_WEEKLY_TOKEN_BUDGET` from `/usage`); per-session tokens are measured precisely via
+`scripts/lib/session_tokens.py` (byte-offset snapshot/delta — no double-count). On a hit the
+runner self-skips the fire (`credit pacing: … reached`, visible on `/schedule`) — no claim,
+no spend. Bypass with `--force`/`FORCE_RUN=1`/`--task-id`; disable with `RUNNER_PACING=off`.
+Ledger is machine-local (`~/.ai-cli-runner/pacing/`, never in git). Tests:
+`scripts/tests/test_runner_pacing.sh` (17 cases).
