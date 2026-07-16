@@ -532,66 +532,12 @@ brain_distill() {
     done
   fi
 
-  local ns atom first count=0
+  local ns count=0
   for ns in $targets; do
     ns="$(_brain_slugify "$ns")"
     [ -d "$d/repos/$ns" ] || { echo "brain_distill: no namespace repos/$ns" >&2; continue; }
     count=$((count + 1))
-    local sess_count hand_count latest
-    sess_count="$(ls "$d/repos/$ns/sessions/" 2>/dev/null | grep -c '\.md$' || true)"
-    hand_count="$(ls "$d/repos/$ns/handoffs/" 2>/dev/null | grep -c '\.md$' || true)"
-    latest="$(ls "$d/repos/$ns/handoffs/" 2>/dev/null | grep '\.md$' | sort | tail -1)"
-    if [ -n "$latest" ]; then latest="$d/repos/$ns/handoffs/$latest"
-    else
-      latest="$(ls "$d/repos/$ns/sessions/" 2>/dev/null | grep '\.md$' | sort | tail -1)"
-      [ -n "$latest" ] && latest="$d/repos/$ns/sessions/$latest"
-    fi
-
-    # brief.md — ~150-token boot brief: counts line + latest handoff, flattened.
-    {
-      printf '# %s — boot brief\n\n' "$ns"
-      printf '_%s sessions · %s handoffs · distilled from atoms on main._\n\n' "$sess_count" "$hand_count"
-      if [ -n "$latest" ] && [ -f "$latest" ]; then
-        _brain_strip_fm "$latest" | tr '\n' ' ' | sed 's/  */ /g;s/^ *//;s/ *$//' | cut -c1-560
-        printf '\n'
-      else
-        printf '_No atoms yet — commit session/handoff atoms and merge to fill this._\n'
-      fi
-    } > "$d/repos/$ns/brief.md"
-
-    # working.md — latest handoff verbatim + last 5 sessions, capped ~8000 chars.
-    {
-      printf '# %s — working context\n\n' "$ns"
-      if [ -n "$latest" ] && [ -f "$latest" ]; then
-        printf '## Latest handoff\n\n'
-        _brain_strip_fm "$latest"
-        printf '\n'
-      fi
-      local recent
-      recent="$(ls "$d/repos/$ns/sessions/" 2>/dev/null | grep '\.md$' | sort -r | head -5)"
-      if [ -n "$recent" ]; then
-        printf '## Recent sessions (newest first)\n\n'
-        for atom in $recent; do
-          printf '### %s\n\n' "$atom"
-          _brain_strip_fm "$d/repos/$ns/sessions/$atom" | head -20
-          printf '\n'
-        done
-      fi
-    } | head -c 8000 > "$d/repos/$ns/working.md"
-
-    # rollup.md — one line per atom (full index of the namespace's history).
-    {
-      printf '# %s — rollup\n\n' "$ns"
-      local kind adir
-      for kind in sessions handoffs; do
-        adir="$d/repos/$ns/$kind"
-        [ -d "$adir" ] || continue
-        for atom in $(ls "$adir" 2>/dev/null | grep '\.md$' | sort -r); do
-          first="$(_brain_strip_fm "$adir/$atom" | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-120)"
-          printf -- '- %s %s — %s\n' "$kind" "$atom" "$first"
-        done
-      done
-    } > "$d/repos/$ns/rollup.md"
+    _brain_distill_ns "$ns" "$d" "$d"
   done
 
   if [ -n "$(git -C "$d" status --porcelain -- repos)" ]; then
@@ -601,6 +547,89 @@ brain_distill() {
   fi
   [ "$original" = "main" ] || git -C "$d" checkout -q "$original"
   return 0
+}
+
+# _brain_apply_exclude <exclude-file> — filter stdin (one atom filename per
+# line), dropping any line that exact-matches an entry in <exclude-file>. No
+# file (or empty file) → passthrough. Used by brain_dream (BRAIN B5) to hide
+# superseded atoms from the COMPILED VIEW without ever touching the raw file.
+_brain_apply_exclude() {
+  local exclude="$1"
+  if [ -n "$exclude" ] && [ -s "$exclude" ]; then grep -vFxf "$exclude"; else cat; fi
+}
+
+# _brain_distill_ns <ns> <src_dir> <out_dir> [exclude_file]
+#
+# Render one namespace's brief/working/rollup.md from its atoms under
+# <src_dir>/repos/<ns> into <out_dir>/repos/<ns>/. Atom filenames listed (one
+# per line) in [exclude_file] are hidden from the compiled view — the raw atom
+# file under <src_dir> is never read for writing, only for display text, so it
+# is never touched. Shared by:
+#   • brain_distill  — out_dir == src_dir, no exclude → today's in-place compile
+#   • brain_dream    — out_dir == a scratch dir, exclude == near-dup supersedes
+#                       (BRAIN B5 step 8: recompile a candidate view to gate
+#                       before the blue-green swap)
+_brain_distill_ns() {
+  local ns="$1" d="$2" outdir="$3" exclude="${4:-}"
+  mkdir -p "$outdir/repos/$ns"
+  local sess_all hand_all sess_count hand_count latest
+  sess_all="$(ls "$d/repos/$ns/sessions/" 2>/dev/null | grep '\.md$' | _brain_apply_exclude "$exclude")"
+  hand_all="$(ls "$d/repos/$ns/handoffs/" 2>/dev/null | grep '\.md$' | _brain_apply_exclude "$exclude")"
+  sess_count="$(printf '%s\n' "$sess_all" | grep -c . || true)"
+  hand_count="$(printf '%s\n' "$hand_all" | grep -c . || true)"
+  latest="$(printf '%s\n' "$hand_all" | sort | tail -1)"
+  if [ -n "$latest" ]; then latest="$d/repos/$ns/handoffs/$latest"
+  else
+    latest="$(printf '%s\n' "$sess_all" | sort | tail -1)"
+    [ -n "$latest" ] && latest="$d/repos/$ns/sessions/$latest"
+  fi
+
+  # brief.md — ~150-token boot brief: counts line + latest handoff, flattened.
+  {
+    printf '# %s — boot brief\n\n' "$ns"
+    printf '_%s sessions · %s handoffs · distilled from atoms on main._\n\n' "$sess_count" "$hand_count"
+    if [ -n "$latest" ] && [ -f "$latest" ]; then
+      _brain_strip_fm "$latest" | tr '\n' ' ' | sed 's/  */ /g;s/^ *//;s/ *$//' | cut -c1-560
+      printf '\n'
+    else
+      printf '_No atoms yet — commit session/handoff atoms and merge to fill this._\n'
+    fi
+  } > "$outdir/repos/$ns/brief.md"
+
+  # working.md — latest handoff verbatim + last 5 sessions, capped ~8000 chars.
+  {
+    printf '# %s — working context\n\n' "$ns"
+    if [ -n "$latest" ] && [ -f "$latest" ]; then
+      printf '## Latest handoff\n\n'
+      _brain_strip_fm "$latest"
+      printf '\n'
+    fi
+    local recent atom
+    recent="$(printf '%s\n' "$sess_all" | sort -r | head -5)"
+    if [ -n "$recent" ]; then
+      printf '## Recent sessions (newest first)\n\n'
+      for atom in $recent; do
+        printf '### %s\n\n' "$atom"
+        _brain_strip_fm "$d/repos/$ns/sessions/$atom" | head -20
+        printf '\n'
+      done
+    fi
+  } | head -c 8000 > "$outdir/repos/$ns/working.md"
+
+  # rollup.md — one line per (non-excluded) atom (index of the namespace's history).
+  {
+    printf '# %s — rollup\n\n' "$ns"
+    local kind names atom first
+    for kind in sessions handoffs; do
+      if [ "$kind" = "sessions" ]; then names="$sess_all"; else names="$hand_all"; fi
+      names="$(printf '%s\n' "$names" | sort -r)"
+      for atom in $names; do
+        [ -n "$atom" ] || continue
+        first="$(_brain_strip_fm "$d/repos/$ns/$kind/$atom" | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-120)"
+        printf -- '- %s %s — %s\n' "$kind" "$atom" "$first"
+      done
+    done
+  } > "$outdir/repos/$ns/rollup.md"
 }
 
 # Strip the leading `---` frontmatter block from an atom file (prints the body).
@@ -908,6 +937,231 @@ brain_gc() {
   echo "  reclaimed:           ${reclaimed} KB (.git ${size_before}K → ${size_after}K)"
   rm -f "$plan" "$remove_atoms" "$remove_ns" "$remove_stash"
   return 0
+}
+
+# ── dream: idle consolidation job (BRAIN B5) ─────────────────────────────────
+#
+# 10-step blue-green consolidation designed for the idle runner cadence,
+# replacing trim_handoff.py's keep-last-N stopgap with supersession-based
+# pruning of the COMPILED VIEW (plan/BRAIN_BUILD_PLAN.md B-5). Raw atoms are
+# NEVER deleted or edited by this job — only brief/working/rollup.md (the
+# distilled view over them) change, and only via a single revertable commit:
+#   1. snapshot       — record main's current SHA (the rollback point; git IS
+#                        the version store, so no separate snapshot copy)
+#   2. normalize/hash  — atoms already carry a content-hash in their filename
+#                        (brain_atom_write's contract) — nothing to redo
+#   3. dedup           — exact-hash duplicates are brain_gc's job (unchanged);
+#                        brain_dream adds NEAR-dup detection: bounded
+#                        shingle/Jaccard similarity per (ns, kind) atom group
+#                        — a MinHash/embedding-cluster stand-in until B-4's
+#                        hybrid retriever ships
+#   4. supersedes      — near-dup pairs at/over --sim-threshold are recorded
+#                        as an append-only ledger, repos/<ns>/supersedes.jsonl
+#   5. preserve raw    — STRUCTURAL: this function never `git rm`s a session/
+#                        handoff/memory atom file — only the compiled view
+#   6. re-embed        — hook: $MYAI_BRAIN_EMBED_CMD (skipped + logged when
+#                        unset — B-4 hasn't shipped an embedding backend yet)
+#   7. rebuild index   — hook: $MYAI_BRAIN_INDEX_CMD (skipped + logged, ditto)
+#   8. recompile       — brief/working/rollup rebuilt into a scratch candidate
+#                        via _brain_distill_ns with superseded atoms hidden
+#   9. replay/promote  — per-namespace sanity gate: candidate must be
+#                        non-empty and its rollup must not have shrunk past
+#                        --min-keep-ratio vs the live rollup. A namespace that
+#                        fails the gate keeps its current compiled view —
+#                        never blocks other namespaces from promoting
+#   10. blue-green     — namespaces that pass swap into one commit; rollback
+#                        is the existing `myai brain revert <sha>` (git IS the
+#                        blue/green store — no bespoke version directory)
+# --dry-run prints the full plan (edges found, per-ns gate result) and writes
+# nothing. Node mirror: not yet ported (tracked in plan/BRAIN_BUILD_PLAN.md B-5
+# — bash is the runner-facing surface; brain_gc's TS mirror is unused by any
+# caller today, so this ships bash-first rather than duplicating unused code).
+brain_dream() {
+  local dry=0 sim_threshold=85 min_keep_ratio=80
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --dry-run|-n) dry=1 ;;
+      --sim-threshold)  sim_threshold="${2:?--sim-threshold needs a value}"; shift ;;
+      --sim-threshold=*) sim_threshold="${1#*=}" ;;
+      --min-keep-ratio)  min_keep_ratio="${2:?--min-keep-ratio needs a value}"; shift ;;
+      --min-keep-ratio=*) min_keep_ratio="${1#*=}" ;;
+      *) echo "brain_dream: unknown option '$1'" >&2; return 2 ;;
+    esac
+    shift
+  done
+  case "$sim_threshold" in ''|*[!0-9]*) echo "brain_dream: --sim-threshold must be a whole 0-100 number" >&2; return 2 ;; esac
+  case "$min_keep_ratio" in ''|*[!0-9]*) echo "brain_dream: --min-keep-ratio must be a whole 0-100 number" >&2; return 2 ;; esac
+
+  local d; d="$(brain_dir)"
+  brain_is_repo "$d" || { echo "brain_dream: no brain repo at $d — run 'myai brain init'" >&2; return 1; }
+  _brain_require_clean || return 1
+
+  local from; from="$(git -C "$d" rev-parse --abbrev-ref HEAD)"
+  [ "$from" = "main" ] || git -C "$d" checkout -q main
+  local snapshot; snapshot="$(git -C "$d" rev-parse main)"   # step 1
+
+  local scratch; scratch="$(mktemp -d -t brain-dream.XXXXXX)"
+  local edges_json="$scratch/supersedes.jsonl"
+  : > "$edges_json"
+
+  echo "brain dream: $d (snapshot $snapshot)"
+  [ -n "${MYAI_BRAIN_EMBED_CMD:-}" ] || echo "  step 6 re-embed:    skip (no MYAI_BRAIN_EMBED_CMD configured)"
+  [ -n "${MYAI_BRAIN_INDEX_CMD:-}" ] || echo "  step 7 rebuild idx: skip (no MYAI_BRAIN_INDEX_CMD configured)"
+
+  local ns nsdir kind adir edge_total=0 promoted=0 held=0
+  for nsdir in "$d"/repos/*/; do
+    [ -d "$nsdir" ] || continue
+    ns="$(basename "$nsdir")"
+    local ns_excl="$scratch/$ns.excl"
+    : > "$ns_excl"
+
+    for kind in sessions handoffs; do
+      adir="$d/repos/$ns/$kind"
+      [ -d "$adir" ] || continue
+      local older newer pct
+      while IFS='|' read -r older newer pct; do
+        [ -n "$older" ] || continue
+        printf '{"ns":"%s","kind":"%s","older":"%s","newer":"%s","similarity_pct":%s}\n' \
+          "$ns" "$kind" "$older" "$newer" "$pct" >> "$edges_json"
+        printf '%s\n' "$older" >> "$ns_excl"
+        edge_total=$((edge_total + 1))
+      done < <(_brain_dream_near_dups "$adir" "$sim_threshold")
+    done
+
+    # step 8: recompile candidate view — reads $d, never writes to it
+    _brain_distill_ns "$ns" "$d" "$scratch/candidate" "$ns_excl"
+
+    # step 9: sanity gate
+    local live_rollup="$d/repos/$ns/rollup.md" cand_rollup="$scratch/candidate/repos/$ns/rollup.md"
+    local live_lines cand_lines gate="pass"
+    # grep -c exits 1 on zero matches (not an error — a namespace can be
+    # legitimately empty), so check existence separately rather than
+    # chaining with && (which would fall through to the || branch and
+    # double-print "0").
+    live_lines=0; [ -f "$live_rollup" ] && live_lines="$(grep -c '^- ' "$live_rollup")"
+    cand_lines=0; [ -f "$cand_rollup" ] && cand_lines="$(grep -c '^- ' "$cand_rollup")"
+    if [ ! -s "$scratch/candidate/repos/$ns/brief.md" ] || [ ! -s "$cand_rollup" ]; then
+      gate="fail-empty"
+    elif [ "$live_lines" -gt 0 ]; then
+      local keep_pct=$(( cand_lines * 100 / live_lines ))
+      [ "$keep_pct" -lt "$min_keep_ratio" ] && gate="fail-shrink(${keep_pct}%)"
+    fi
+
+    local excl_n=0; [ -s "$ns_excl" ] && excl_n="$(grep -c . "$ns_excl")"
+    if [ "$gate" = "pass" ]; then
+      echo "  $ns: $excl_n superseded → candidate promoted ($cand_lines/$live_lines atoms in rollup)"
+      promoted=$((promoted + 1))
+      if [ "$dry" != "1" ]; then
+        cp "$scratch/candidate/repos/$ns/brief.md" "$d/repos/$ns/brief.md"
+        cp "$scratch/candidate/repos/$ns/working.md" "$d/repos/$ns/working.md"
+        cp "$scratch/candidate/repos/$ns/rollup.md" "$d/repos/$ns/rollup.md"
+        # step 4: persist THIS namespace's supersedes edges only when its
+        # candidate view actually went live — a held ns keeps its old view
+        # unchanged, so recording edges for it would describe a swap that
+        # never happened (ledger drift). A held ns makes zero store changes.
+        # Guard with grep -q first — a bare `>>` creates an empty file even
+        # when grep matches nothing, which would commit a spurious no-op
+        # ledger file on every dry idle cycle.
+        if grep -qF "\"ns\":\"$ns\"" "$edges_json" 2>/dev/null; then
+          grep -F "\"ns\":\"$ns\"" "$edges_json" >> "$d/repos/$ns/supersedes.jsonl"
+        fi
+      fi
+    else
+      echo "  $ns: gate $gate — keeping current compiled view (old version stays live)"
+      held=$((held + 1))
+    fi
+  done
+
+  echo "  near-dup edges:      $edge_total (>= ${sim_threshold}% similarity)"
+  echo "  namespaces promoted: $promoted"
+  echo "  namespaces held:     $held"
+
+  if [ "$dry" = "1" ]; then
+    echo "  mode: DRY RUN (nothing written, store untouched)"
+    [ "$edge_total" != "0" ] && { echo "  supersedes plan:"; sed 's/^/    /' "$edges_json"; }
+    rm -rf "$scratch"
+    [ "$from" = "main" ] || git -C "$d" checkout -q "$from"
+    return 0
+  fi
+
+  # step 10: blue-green swap — one commit; old version stays reachable/revertable
+  if [ -n "$(git -C "$d" status --porcelain -- repos)" ]; then
+    git -C "$d" add repos
+    git -C "$d" commit -q -m "brain(dream): consolidate $promoted ns · $edge_total supersedes edge(s) · $held held"
+    echo "  committed: $(git -C "$d" rev-parse --short HEAD) (rollback: myai brain revert $(git -C "$d" rev-parse --short HEAD))"
+  else
+    echo "  no changes to commit"
+  fi
+
+  rm -rf "$scratch"
+  [ "$from" = "main" ] || git -C "$d" checkout -q "$from"
+  brain_sync_push
+  return 0
+}
+
+# _brain_dream_shingles <atom_file> — sorted, unique 4-word shingle set on
+# stdout (frontmatter stripped, case-folded, whitespace-collapsed). The
+# Jaccard similarity of two atoms' shingle sets approximates MinHash/SimHash
+# near-dup detection without an external dependency.
+_brain_dream_shingles() {
+  _brain_strip_fm "$1" | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' '\n' | grep -v '^$' | awk '
+    { w[NR] = $0 }
+    END {
+      n = NR
+      if (n < 4) {
+        for (i = 1; i <= n; i++) print w[i]
+      } else {
+        for (i = 1; i <= n - 3; i++) print w[i] " " w[i+1] " " w[i+2] " " w[i+3]
+      }
+    }' | sort -u
+}
+
+# _brain_dream_near_dups <dir> <threshold_pct> — prints "older|newer|simPct"
+# for every pair of atoms in <dir> whose shingle-set Jaccard similarity is >=
+# <threshold_pct>. "older" sorts first (atom filenames are timestamp-prefixed,
+# so ascending sort == chronological order) — the direction supersedes edges
+# point in (older superseded by newer). Bounded: >200 live atoms in one dir
+# skips the O(n²) scan (logged) — B-4's embedding clusters replace this at scale.
+_brain_dream_near_dups() {
+  local dir="$1" threshold="$2"
+  local list; list="$(mktemp -t brain-dream-list.XXXXXX)"
+  ls "$dir" 2>/dev/null | grep '\.md$' | sort > "$list"
+  local n; n="$(wc -l < "$list" | tr -d ' ')"
+  if [ "$n" -le 1 ]; then rm -f "$list"; return 0; fi
+  if [ "$n" -gt 200 ]; then
+    echo "brain_dream: skip near-dup scan in $dir ($n atoms > 200 cap)" >&2
+    rm -f "$list"
+    return 0
+  fi
+
+  local tmp; tmp="$(mktemp -d -t brain-dream-sh.XXXXXX)"
+  local i=0 f
+  : > "$tmp/names"
+  while IFS= read -r f; do
+    i=$((i + 1))
+    printf '%s\n' "$f" >> "$tmp/names"
+    _brain_dream_shingles "$dir/$f" > "$tmp/$i.shingles"
+  done < "$list"
+  rm -f "$list"
+
+  local a b fa fb inter uni pct
+  a=1
+  while [ "$a" -lt "$n" ]; do
+    fa="$(sed -n "${a}p" "$tmp/names")"
+    b=$((a + 1))
+    while [ "$b" -le "$n" ]; do
+      fb="$(sed -n "${b}p" "$tmp/names")"
+      inter="$(comm -12 "$tmp/$a.shingles" "$tmp/$b.shingles" | wc -l | tr -d ' ')"
+      uni="$(sort -u "$tmp/$a.shingles" "$tmp/$b.shingles" | wc -l | tr -d ' ')"
+      if [ "$uni" -gt 0 ]; then
+        pct=$(( inter * 100 / uni ))
+        [ "$pct" -ge "$threshold" ] && printf '%s|%s|%s\n' "$fa" "$fb" "$pct"
+      fi
+      b=$((b + 1))
+    done
+    a=$((a + 1))
+  done
+  rm -rf "$tmp"
 }
 
 # ── status ───────────────────────────────────────────────────────────────────
