@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# .githooks/pre-commit — refuse to commit Dropbox sync-conflict artifacts.
+#
+# DEVOPS root-cause fix (2026-07-20): every repo in config/managed_repos.txt
+# lives under ~/Dropbox, so a conflicted-copy file that slips past .gitignore
+# (untracked new file, or a path .gitignore doesn't cover yet) has historically
+# been caught only by manual review — someone notices "CLAUDE.md (Rumman's
+# conflicted copy 2026-07-14).md" staged and backs it out by hand. This hook
+# makes that a hard gate instead of a habit.
+#
+# Installed via `scripts/install_git_hooks.sh` (sets core.hooksPath=.githooks).
+# Bypass only with `git commit --no-verify` — that should be rare enough to be
+# a deliberate, visible choice, not a silent default.
+set -eu
+
+pattern='([Cc]onflicted copy|[Cc]ase [Cc]onflict)'
+
+staged=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+[ -z "$staged" ] && exit 0
+
+bad=""
+while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    if printf '%s\n' "$f" | grep -Eq "$pattern"; then
+        bad="${bad}${f}
+"
+    fi
+done <<EOF
+$staged
+EOF
+
+if [ -n "$bad" ]; then
+    echo "pre-commit: refusing to commit Dropbox conflicted-copy file(s):" >&2
+    printf '%s' "$bad" | sed 's/^/  - /' >&2
+    echo "" >&2
+    echo "These are sync artifacts, not real changes. Remove and unstage them:" >&2
+    echo "  find . -name '*conflicted copy*' -not -path './.git/*' -delete" >&2
+    echo "  git restore --staged <file>" >&2
+    exit 1
+fi
+
+exit 0

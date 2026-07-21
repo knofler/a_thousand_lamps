@@ -55,10 +55,33 @@ if [ -z "$REPO" ]; then
   fi
 fi
 
-# Gateway reachability check (clear message; don't fall over silently).
-if ! curl -sf -o /dev/null "${GATEWAY_MCP%/mcp}/health" 2>/dev/null; then
+# Gateway + backing-store reachability check (clear message; don't fall over
+# silently). Deliberately probes /health/deep, not the shallow /health — the
+# shallow endpoint always answers HTTP 200 even when MongoDB is unreachable
+# (other scripts rely on that as a pure process-liveness probe), so a bare
+# `curl -sf` against it never trips even when tasks would silently vanish
+# into a broken store (2026-07-06 localhost:27017-misdirection incident).
+# /health/deep actually pings Mongo and returns non-2xx when it's down.
+_deep_rc=0
+_deep="$(curl -s -m 8 -w '\n%{http_code}' "${GATEWAY_MCP%/mcp}/health/deep" 2>/dev/null)" || _deep_rc=$?
+_deep_status="${_deep##*$'\n'}"
+_deep_body="${_deep%$'\n'*}"
+if [ $_deep_rc -ne 0 ] || [ -z "$_deep_status" ]; then
   echo "✗ Gateway not reachable at $GATEWAY_MCP" >&2
   echo "  Start it (in the master AI repo): docker compose up -d  → then retry." >&2
+  exit 1
+fi
+if [ "$_deep_status" -lt 200 ] || [ "$_deep_status" -ge 300 ]; then
+  _mongo_state="$(echo "$_deep_body" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get("checks", {}).get("mongodb", {}).get("status", "unknown"))
+except Exception:
+    print("unknown")
+' 2>/dev/null)"
+  echo "✗ Gateway is unhealthy (HTTP $_deep_status, mongodb=$_mongo_state) — refusing to queue a task that would silently vanish." >&2
+  echo "  Check MONGODB_URI in the gateway's .env — it must point at the compose service host (e.g. 'mongo'), not 'localhost'." >&2
   exit 1
 fi
 

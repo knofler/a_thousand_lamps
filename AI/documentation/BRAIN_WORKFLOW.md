@@ -22,7 +22,7 @@ falls back to the handoff store automatically when no brain exists on a machine.
 
 ## One-time per machine
 
-1. Install the framework: `npm i -g @knofler/ai-management` (or use the master checkout).
+1. Install the framework: `npm i -g ai-management` (or use the master checkout).
 2. Get the brain: `myai brain init --remote "$MYAI_BRAIN_REMOTE"` — no local brain yet →
    it CLONES the remote (one command, nothing manual); very first machine ever → it
    creates the store and seeds the remote with an initial push.

@@ -172,6 +172,22 @@ The `.git/gk/` directory (GitKraken) is the biggest offender for Dropbox conflic
 
 ---
 
+## Root Cause + Durable Fix (DEVOPS, 2026-07-20)
+
+Nearly every session across ai_management, agentFlow, connect, and playground was independently cleaning 3-5 conflicted-copy files (CLAUDE.md variants, `AI/scripts/*`, hook scripts) — always ad hoc, never at the source. Investigation found the actual write pattern:
+
+**Root cause:** every path in `config/managed_repos.txt` lives under a cloud-synced directory — the sync client mirrors the working tree itself, not just what git tracks. `scripts/update_all.sh` used to `cp -v`/`cp -r` CLAUDE.md, `hooks/`, `AI/scripts/*`, `agents/`, `skills/` into every managed repo **unconditionally, every run**, whether or not the content had changed. When two machines synced within the same Dropbox propagation window (the autonomous CLI runner on one Mac + an interactive session on another, or two Macs both running `wrap up`/`ship it` around the same time), both touched the same destination paths — and Dropbox's conflict reconciliation can't distinguish "two machines editing the same bytes" from "two machines innocently re-writing identical bytes," so it defensively spins up `<file> (<machine>'s conflicted copy <date>)`.
+
+**Fix (`scripts/lib/sync_guard.sh`, sourced by `update_all.sh`):**
+1. `sync_file`/`sync_tree` — skip the write entirely when the destination is already byte-identical. Most `update_all.sh` runs re-sync unchanged framework files, so this removes the touch (and therefore the Dropbox event) for the dominant case. Verified: a second consecutive run produces zero `synced:` lines.
+2. `acquire_repo_lock`/`release_repo_lock` — best-effort mkdir-based mutual exclusion per target repo, so two machines starting a sync within the same few seconds serialize instead of racing raw writes. A lock older than 5 minutes is treated as abandoned and reclaimed rather than blocking forever.
+3. **Pre-commit guard** (`.githooks/pre-commit`, installed via `scripts/install_git_hooks.sh` which sets `core.hooksPath=.githooks`) — a hard, non-bypassable-by-habit gate: `git commit` is refused if any staged file matches `*conflicted copy*` / `*Case Conflict*`. Propagated fleet-wide by `update_all.sh` (copies `.githooks/` + runs the installer per managed repo) and self-healed every session by `scripts/machine_selfheal.sh` step 10, so no machine needs a manual one-time setup step.
+4. **`.gitignore`** broadened beyond `*conflicted copy*` to also cover Case-Conflict dedup suffixes, so a conflict file that does slip through is never accidentally staged in the first place.
+
+Tests: `scripts/tests/test_sync_guard.sh` (skip-if-identical + lock semantics), `scripts/tests/test_git_hooks_conflict_guard.sh` (installer + commit-block behavior).
+
+---
+
 ## Quick Reference
 
 ```

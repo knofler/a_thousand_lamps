@@ -33,8 +33,31 @@ if [ "$FORCE" != true ] && [ -f "$SENTINEL" ] && grep -q "$HASH" "$SENTINEL" 2>/
     echo "schedule.json unchanged (already ingested) — skip"; exit 0
 fi
 
-if ! curl -sf -o /dev/null "${GATEWAY_MCP%/mcp}/health" 2>/dev/null; then
+# Deliberately probes /health/deep, not the shallow /health — the shallow
+# endpoint always answers HTTP 200 even when MongoDB is unreachable (other
+# scripts rely on that as a pure process-liveness probe), so a bare
+# `curl -sf` against it never trips even when ingested tasks would silently
+# vanish into a broken store (2026-07-06 localhost:27017-misdirection
+# incident). /health/deep actually pings Mongo and returns non-2xx when down.
+_deep_rc=0
+_deep="$(curl -s -m 8 -w '\n%{http_code}' "${GATEWAY_MCP%/mcp}/health/deep" 2>/dev/null)" || _deep_rc=$?
+_deep_status="${_deep##*$'\n'}"
+_deep_body="${_deep%$'\n'*}"
+if [ $_deep_rc -ne 0 ] || [ -z "$_deep_status" ]; then
     echo "✗ gateway not reachable at $GATEWAY_MCP — cannot push schedule (run on the gateway Mac)"; exit 0
+fi
+if [ "$_deep_status" -lt 200 ] || [ "$_deep_status" -ge 300 ]; then
+    _mongo_state="$(echo "$_deep_body" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get("checks", {}).get("mongodb", {}).get("status", "unknown"))
+except Exception:
+    print("unknown")
+' 2>/dev/null)"
+    echo "✗ gateway is unhealthy (HTTP $_deep_status, mongodb=$_mongo_state) — refusing to ingest a schedule that would silently vanish." >&2
+    echo "  Check MONGODB_URI in the gateway's .env — it must point at the compose service host (e.g. 'mongo'), not 'localhost'." >&2
+    exit 1
 fi
 
 # Consent gate — skip repos on the no-autonomous-schedule list unless consented
@@ -61,8 +84,12 @@ def call(n,a):
 if d.get("days"):
     call("plan_set",{"repo":repo,"startDate":d.get("startDate"),"replace":True,"days":d["days"]})
     print(f"  plan_set: {len(d['days'])} days for {repo}")
-# 2) schedule_task each work item (the runner queue)
+# 2) schedule_task each work item (the runner queue). check=False on purpose
+# (one bad task shouldn't abort the rest) but the result is NOT discarded —
+# a swallowed failure here is exactly the class of bug this task exists to
+# close, so every non-zero exit is reported and turns into a hard exit code.
 n=0
+failed=0
 for t in d.get("tasks",[]):
     cmd=[sched,"--repo",repo,"--title",t["title"],"--priority",t.get("priority","P2"),
          "--model",t.get("model","claude-fable-5")]
@@ -70,9 +97,15 @@ for t in d.get("tasks",[]):
     notes=f"[{t.get('category','')}] day {t.get('day','?')} | from schedule.json"
     if t.get("desc"): cmd+=["--desc",t["desc"]]
     cmd+=["--notes",notes]
-    subprocess.run(cmd,check=False,capture_output=True)
-    n+=1
-print(f"  scheduled {n} tasks for {repo}")
+    r=subprocess.run(cmd,check=False,capture_output=True,text=True)
+    if r.returncode != 0:
+        failed+=1
+        print(f"  ✗ failed to schedule '{t['title']}' (exit {r.returncode}): {(r.stderr or r.stdout).strip()}")
+    else:
+        n+=1
+print(f"  scheduled {n} tasks for {repo}" + (f" — {failed} FAILED" if failed else ""))
+if failed:
+    raise SystemExit(1)
 PY
 
 mkdir -p "$(dirname "$SENTINEL")"

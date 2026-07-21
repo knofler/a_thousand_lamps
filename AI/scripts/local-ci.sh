@@ -30,6 +30,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/ci_check_map.sh
+. "$SCRIPT_DIR/lib/ci_check_map.sh"
+
 # ── Args ──────────────────────────────────────────────────────────────────
 REPO_ROOT=""
 SHA=""
@@ -233,6 +237,65 @@ check_build() {
   echo "    FAIL — build chain failed (ephemeral)"; return 1
 }
 
+# ── Generic single-script / audit checks for non-standard context names ─────
+# (e.g. agentFlow's "Lint" / "Type-check" / "Test" / "Audit" jobs — see
+# lib/ci_check_map.sh for the name→script mapping). Mirrors check_build's
+# builder-stage / ephemeral-image logic for a single npm script instead of the
+# whole lint+typecheck+build+test chain.
+check_npm_script() {
+  local candidates="$1" ctx="$2" script="" c
+  echo "  [$ctx] npm run <${candidates// /|}>"
+  [ -f package.json ] || { echo "    SKIP — no package.json"; return 2; }
+  for c in $candidates; do
+    if python3 -c "import json,sys; sys.exit(0 if '$c' in json.load(open('package.json')).get('scripts',{}) else 1)" 2>/dev/null; then
+      script="$c"; break
+    fi
+  done
+  [ -n "$script" ] || { echo "    SKIP — no matching script ($candidates) in package.json"; return 2; }
+  command -v docker >/dev/null 2>&1 || { echo "    docker unavailable"; return 3; }
+
+  local netarg="" dbctr; dbctr="$(repo_db_sidecar)"
+  if [ -n "$dbctr" ]; then
+    netarg="--network container:$dbctr"
+    echo "    DB sidecar '$dbctr' detected — sharing its network for DB-backed steps"
+  fi
+  local dbenv="-e MONGODB_URI=${MONGODB_URI:-mongodb://localhost:27017/localci} -e CI=1"
+
+  local stage; stage="$(repo_build_stage)"
+  if [ -n "$stage" ]; then
+    local base img; base="$(basename "$REPO_ROOT" | tr '[:upper:]' '[:lower:]')"
+    img="localci-verify-${base}:latest"
+    if ! docker image inspect "$img" >/dev/null 2>&1; then
+      echo "    production-faithful build — docker build --target $stage ($img)"
+      DOCKER_BUILDKIT=1 docker build --target "$stage" -t "$img" "$REPO_ROOT" \
+        || { echo "    FAIL — builder-stage image build failed"; return 1; }
+    fi
+    # shellcheck disable=SC2086
+    if docker run --rm $netarg $dbenv -w /app "$img" sh -lc "npm run $script"; then
+      echo "    PASS — npm run $script green (builder image)"; return 0
+    fi
+    echo "    FAIL — npm run $script failed in builder image"; return 1
+  fi
+
+  echo "    no builder stage; ephemeral $NODE_IMAGE (npm ci + devDeps): npm run $script"
+  # shellcheck disable=SC2086
+  if docker run --rm $netarg $dbenv -v "$REPO_ROOT":/app -w /app "$NODE_IMAGE" sh -lc "npm ci && npm run $script"; then
+    echo "    PASS — npm run $script green (ephemeral)"; return 0
+  fi
+  echo "    FAIL — npm run $script failed (ephemeral)"; return 1
+}
+
+check_audit_generic() {
+  echo "  [Audit] npm audit"
+  if [ -f package-lock.json ]; then
+    if run_node 'npm audit --omit=dev --audit-level=high'; then
+      echo "    PASS — npm audit clean (no high+ in prod deps)"; return 0
+    fi
+    echo "    FAIL — npm audit found high+ severity in prod deps"; return 1
+  fi
+  echo "    SKIP — no package-lock.json"; return 2
+}
+
 # ── ADR-010 §3.4 tenant-scoping gate (distributed multi-tenancy rule) ────────
 # Flags any raw query on a SCOPED collection model that lacks a tenant filter —
 # a silent cross-tenant data-leak class. Row-level isolation (one DB, tenantId
@@ -329,6 +392,14 @@ echo
 RESULTS=""
 set_result() { RESULTS="${RESULTS}${2}"$'\t'"${1}"$'\n'; }   # set_result <ctx> <state>
 get_result() { printf '%s' "$RESULTS" | awk -F'\t' -v c="$1" '$2==c{print $1; exit}'; }
+# apply_rc <ctx> <rc> — rc: 0 pass, 2 skip, anything else fail (+ overall=1).
+# Callers must capture rc via `cmd || rc=$?` (set -e-safe — see the "build"
+# case's note below) before calling this.
+apply_rc() {
+  if [ "$2" -eq 0 ]; then set_result "$1" pass
+  elif [ "$2" -eq 2 ]; then set_result "$1" skip
+  else set_result "$1" fail; overall=1; fi
+}
 # NB: do NOT reset `overall` here — the tenant-scoping gate above may already
 # have set it to 1, and that CRITICAL block must survive into "Ready to Merge".
 HAS_READY=0
@@ -348,11 +419,22 @@ for ctx in "${CONTEXTS[@]}"; do
       # at the master (it HAS package.json → build returns 0) but it killed
       # local-ci on any repo whose build SKIPs. Caught by fleet_smoke.sh.
       rc=0; check_build || rc=$?
-      if [ $rc -eq 0 ]; then set_result "$ctx" pass
-      elif [ $rc -eq 2 ]; then set_result "$ctx" skip
-      else set_result "$ctx" fail; overall=1; fi ;;
+      apply_rc "$ctx" "$rc" ;;
     *)
-      echo "  [$ctx] no local runner mapped — SKIP (will not post)"; set_result "$ctx" skip ;;
+      # Non-standard context name (e.g. agentFlow's "Lint"/"Type-check"/
+      # "Test"/"Audit") — see lib/ci_check_map.sh. Falls through to the old
+      # "no local runner mapped" SKIP only when nothing matches, instead of
+      # for every check whose name isn't one of this repo's own.
+      script="$(ci_map_npm_scripts "$ctx")"
+      if [ -n "$script" ]; then
+        rc=0; check_npm_script "$script" "$ctx" || rc=$?
+        apply_rc "$ctx" "$rc"
+      elif ci_map_audit "$ctx"; then
+        rc=0; check_audit_generic || rc=$?
+        apply_rc "$ctx" "$rc"
+      else
+        echo "  [$ctx] no local runner mapped — SKIP (will not post)"; set_result "$ctx" skip
+      fi ;;
   esac
   echo
 done

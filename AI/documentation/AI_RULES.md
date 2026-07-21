@@ -141,21 +141,27 @@ routines, others ad-hoc `SCHEDULE.md` files) fragments the view and/or bills tok
   **Self-surfacing reminder:** `scripts/machine_selfheal.sh` (runs at every session start via
   `hooks/session/18-machine-selfheal.sh`) prints a **RUNNER REMINDER** on any Mac that has no runner
   installed; silence a Mac that should never be a worker with `touch ~/.ai-cli-runner/.no-runner`.
-* **Reconcile phantom `review` tasks — the board must self-heal (`scripts/reconcile_review_tasks.sh`).**
+* **Reconcile phantom `review`/`blocked` tasks — the board must self-heal (`scripts/reconcile_review_tasks.sh`).**
   The runner works a task on `test` → flips it to `review`, but **never ships to main and never flips
-  `review→done`**. Once that work lands on `main` (via `ship it`/`/fleet`, or because it was already
-  there), the gateway task is stuck in `review` forever and the queue inflates with already-shipped
-  **phantoms** — so every `/fleet` morning console wastes time re-triaging stale entries (on
-  2026-06-22, **~38 of 44** "backlog" tasks were phantom). The fix: `reconcile_review_tasks.sh`
-  reconciles in two stages. **(1) Whole-repo fast path:** compare each repo's `origin/test` against
-  `origin/main`; **if `test` has 0 commits ahead, every one of that repo's `review` tasks is provably
-  shipped → flip to `done`**. **(2) Per-task ancestor check:** when `test` IS ahead, the repo still has
-  *some* unshipped work — but `cli_task_runner.sh` stamps the commit SHA(s) each session pushed onto the
-  task notes (`[pushed-shas] {...,"commits":[...]}`), so for each task we check whether **every** stamped
-  commit is an ancestor of `origin/main` (`git merge-base --is-ancestor`); if so, that single task's work
-  is provably shipped → flip just it to `done`, even though other tasks remain unshipped on `test`. Tasks
-  with no stamped SHA (or whose SHAs aren't on main yet — e.g. squash/rebase merges produce new SHAs) are
-  left for review. Indeterminate repos (no git / missing `main`|`test`) are skipped untouched. It is
+  `review→done`**; a task can also land in `blocked` (resource-cap kill, trust-dialog death, genuine
+  failure) yet have its feature shipped later by a different session/human. Once that work lands on
+  `main` (via `ship it`/`/fleet`, or because it was already there), the gateway task is stuck in
+  `review`/`blocked` forever and the queue inflates with already-shipped **phantoms** — so every
+  `/fleet` morning console wastes time re-triaging stale entries (on 2026-06-22, **~38 of 44** "backlog"
+  tasks were phantom; agentFlow's and connect's handoffs have separately flagged shipped-but-stuck
+  review/blocked tasks that this same pattern misses if it only looks at `review`). The fix:
+  `reconcile_review_tasks.sh` sweeps BOTH statuses, across **every** managed repo that has any (not
+  just this repo's own queue), and reconciles in two stages. **(1) Whole-repo fast path:** compare each
+  repo's `origin/test` against `origin/main`; **if `test` has 0 commits ahead, every one of that repo's
+  `review`/`blocked` tasks is provably shipped → flip to `done`**. **(2) Per-task ancestor check:** when
+  `test` IS ahead, the repo still has *some* unshipped work — but `cli_task_runner.sh` stamps the commit
+  SHA(s) each session pushed onto the task notes (`[pushed-shas] {...,"commits":[...]}`) on a successful
+  review flip, so for each task WITH a stamped SHA we check whether **every** stamped commit is an
+  ancestor of `origin/main` (`git merge-base --is-ancestor`); if so, that single task's work is provably
+  shipped → flip just it to `done`, even though other tasks remain unshipped on `test`. Tasks with no
+  stamped SHA (most `blocked` tasks, or any whose SHAs aren't on main yet — e.g. squash/rebase merges
+  produce new SHAs) are left in place — the whole-repo fast path is what rescues most of those in
+  practice. Indeterminate repos (no git / missing `main`|`test`) are skipped untouched. It is
   **fail-safe** — it only flips when it can prove the work is on main (whole-repo test==main, or each
   task's exact commits), and it NEVER ships/merges/touches git. Wired in automatically: the **CLI runner** runs it (throttled ≤1/hr)
   each fire, **`/fleet`** runs it before computing the morning table, and it runs at `agent mode` start
@@ -361,23 +367,32 @@ our output must be eliminated at the source.
 
 ## 14. Config propagation is DEEP-MERGE, never clobber (fleet-wide, MANDATORY)
 
-* **The rule:** `update_all.sh` (and any future propagation path) must NEVER plain-overwrite a
-  repo-local JSON config. `.claude/settings.json` and `.mcp.json` are propagated through
-  `scripts/lib/json_merge.py`: **framework-owned keys stay canonical (master wins), repo-local
+* **The rule:** `update_all.sh`, `init_ai.sh`, and any future propagation path must NEVER
+  plain-overwrite a repo-local JSON config. `.claude/settings.json` and `.mcp.json` are
+  propagated through the shared `merge_json()` wrapper (`scripts/lib/merge_json.sh`, calling
+  `scripts/lib/json_merge.py`): **framework-owned keys stay canonical (master wins), repo-local
   additions survive** (statusLine, extra session hooks, extra permissions, custom MCP servers),
   and the file is rewritten **only when the merged result differs semantically** — a no-change
   sync leaves the repo tree clean.
-* **Why (real incident):** the old unconditional overwrite clobbered agentFlow's repo-local
+* **Why (real incidents):** the old unconditional overwrite clobbered agentFlow's repo-local
   settings **18 times** (3 in one session), burning a repair cycle
   (`git checkout origin/main -- .claude/settings.json .mcp.json`) at the start of every
   agentFlow session. The old `.mcp.json` jq merge also silently dropped every non-`mcpServers`
-  top-level key and rewrote the file on every sync even when nothing changed.
+  top-level key and rewrote the file on every sync even when nothing changed. PR #289
+  (2026-07-02) fixed all 5 `update_all.sh` callsites — but `init_ai.sh` had its OWN independent
+  raw `sed ... > .claude/settings.json` overwrite that fix never touched, so re-`init`ing an
+  already-customized repo kept clobbering (19th incident, 2026-07-05). Fixed by extracting
+  `merge_json()` into a shared lib both scripts source, plus a cross-machine repo lock
+  (`scripts/lib/sync_guard.sh`) so `init_ai.sh` and `update_all.sh` can't race each other's
+  write to the same repo's `.claude/settings.json`.
 * **Guard, not fallback:** if a repo's file is invalid JSON, the merge SKIPS it and reports —
   it never falls back to overwriting. A broken file is the repo agent's to fix; destroying it
   hides the problem.
-* **When you add a new propagated JSON config:** wire it through `merge_json()` in
-  `update_all.sh`. Tests: `scripts/tests/test_json_merge.sh` (17 assertions).
-  LL: `LL/2026-07-02-updateall-json-clobber-deepmerge.md`.
+* **When you add a new propagated JSON config:** wire it through `merge_json()`
+  (`scripts/lib/merge_json.sh`) in whichever script writes it — never a raw `cp`/`sed`/jq
+  overwrite. Tests: `scripts/tests/test_json_merge.sh` (17 assertions),
+  `scripts/tests/test_init_ai_settings_merge.sh`.
+  LL: `LL/2026-07-02-updateall-json-clobber-deepmerge.md`, `LL/2026-07-05-init-ai-settings-clobber.md`.
 
 ## 15. Checkpoint-as-you-go — the handoff is ALWAYS current, never end-loaded (fleet-wide, MANDATORY)
 
@@ -575,15 +590,31 @@ no spend. Bypass with `--force`/`FORCE_RUN=1`/`--task-id`; disable with `RUNNER_
 Ledger is machine-local (`~/.ai-cli-runner/pacing/`, never in git). Tests:
 `scripts/tests/test_runner_pacing.sh` (17 cases).
 
-**5. Trivial → local tier — free grunt on local Ollama (2026-07-12).** Below the Sonnet
-tier sits an optional **free** tier: a genuinely mechanical task (title/desc matches
+**5. Trivial → local tier — free grunt on local Ollama (2026-07-12, fixed 2026-07-19).** Below
+the Sonnet tier sits an optional **free** tier: a genuinely mechanical task (title/desc matches
 `TRIVIAL_KEYWORDS` — chore/docs/format/lint/bump/rename/typo/comment/changelog/readme) runs
 on a local Ollama model (`LOCAL_MODEL`, default `qwen2.5-coder:7b`) FIRST, with Sonnet as
 fallback — and a local success is **not charged to the pacing budget** (§18.4). Escalation
-(failure→Opus) always wins over trivial-routing. **DEFAULT OFF** (`RUNNER_LOCAL_TIER=off` in
-`config/runner_budget.conf`): enable only after confirming `claude -p --model qwen2.5-coder:7b`
-runs headlessly on the claude-tech profile (needs Claude Code's Ollama integration set up).
-Low-risk to enable — if the local model fails the task it's released back to `pending` for
-Sonnet next fire, and the safety hooks apply throughout. Full model ladder now:
-**local qwen (trivial, free) → Sonnet 5 (default) → Opus 4.8 (failure-gated, capped)**, all
-under the daily/weekly credit pacing. Tests: `scripts/tests/test_runner_local_tier.sh` (8 cases).
+(failure→Opus) always wins over trivial-routing. **VERIFIED 2026-07-18 that `claude -p
+--model qwen2.5-coder:7b` never routes to Ollama** — Claude Code sends the model name straight
+to Anthropic, which errors "model may not exist". Fixed by calling the Ollama HTTP API
+directly instead of the `claude` CLI for this one tier (`scripts/lib/ollama_local_tier.sh` +
+`scripts/lib/ollama_agent.py`): a bounded (default 6-iteration) tool-calling loop gives the
+model `list_files`/`read_file`/`write_file` scoped to the task's workdir, and the runner
+itself handles the `test`-branch checkout/commit/push (with the same fetch+rebase-retry-once
+as an interactive session) once the model reports done. **Resource guards (non-negotiable
+per user directive):** `OLLAMA_LOCAL_KEEP_ALIVE=2m` (model unloads shortly after each call,
+not left resident) · single-concurrency lock (`ollama_lock_acquire`/`_release` — local
+inference NEVER runs in parallel, even across concurrent runner slots) · a free-RAM
+preflight (`ollama_ram_ok`, `OLLAMA_MIN_FREE_RAM_MB=1536`) that skips local outright and falls
+straight through to Sonnet when the box is already tight, respecting the 2GB stack ceiling
+(CLAUDE.md §2). **`RUNNER_LOCAL_TIER=on`** in `config/runner_budget.conf` (flipped from the
+prior default-off now that the routing actually works). Low-risk: any decline/failure at any
+stage (RAM preflight, lock contention, agent giving up, nothing to commit, unresolvable push
+conflict) makes the model-loop fall through to Sonnet in the same fire — the task is never
+released back to `pending` empty-handed on account of the local attempt alone. Full model
+ladder now: **local qwen (trivial, free) → Sonnet 5 (default) → Opus 4.8 (failure-gated,
+capped)**, all under the daily/weekly credit pacing. Tests:
+`scripts/tests/test_runner_local_tier.sh` (8 cases, classifier), `scripts/tests/test_ollama_local_tier.sh`
+(resource-guard + git-plumbing unit tests), `scripts/tests/test_ollama_agent.py` (bounded
+tool-loop unit tests against a fake transport).

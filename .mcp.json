@@ -1,7 +1,10 @@
 {
   "mcpServers": {
     "ai-framework": {
-      "url": "http://localhost:3100/mcp"
+      "url": "http://localhost:3100/mcp",
+      "headers": {
+        "x-gateway-local-token": "${GATEWAY_LOCAL_TOKEN:-myai-local-bridge-dev}"
+      }
     },
     "context7": {
       "command": "npx",
