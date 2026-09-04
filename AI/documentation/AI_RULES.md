@@ -34,6 +34,7 @@ You are part of a multi-agent team (Gemini, Claude, Copilot). You do not share i
 * Fail fast: Write code that catches errors early and throws descriptive exceptions.
 * Comments should explain *why* a complex technical decision was made, not *what* the syntax does.
 * Do not output lazy, truncated code (e.g., `// ... rest of code here`). Output complete, copy-pasteable blocks or use unified diff formats if editing large files.
+* **Shell `stat` is GNU-first, NOT BSD-first (fleet-wide, MANDATORY).** Scripts run on both macOS (BSD `stat`) and Linux CI/runner (GNU `stat`). ALWAYS write mtime/size reads as `stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null || <fallback>` (GNU `-c` first, BSD `-f` second). **Never BSD-first, and never BSD-only.** Reason: a failing GNU `stat -f %m "$f"` on Linux treats `-f` as `--file-system` and `%m` as a bogus operand — it errors on `%m` to *stderr* (so `||` fires) **but still prints `$f`'s filesystem status to stdout**, polluting the captured value; volatile free-block counts in that output also make two reads differ (the classic "flaky mtime test"). BSD-first works on macOS and silently corrupts on Linux — the worst failure mode. This has recurred ≥3× (`runner_log_rotate.sh` 333f84c, `runner_worktree.sh`, `sync_guard.sh`); the ordering is the durable fix. Same rule for `stat -c %s`/`stat -f %z` (size).
 
 ## 5. Multi-Agent Parallel Protocol
 
@@ -218,6 +219,37 @@ routines, others ad-hoc `SCHEDULE.md` files) fragments the view and/or bills tok
   fails loudly instead of defaulting to local mongo); (d) `machine_selfheal.sh` §7 detects a
   rogue container (workspace `working_dir` label, or Mongo-URI drift vs the owning `.env`)
   and recreates gateway+dashboard from the master checkout.
+<<<<<<< Updated upstream
+=======
+* **PLANNER task hard-boundary — append + commit `config/runner_backlog.jsonl` ONLY,
+  never `tasks_create`/`tasks_update` (root cause of the 2026-07-06/07 connect overnight
+  incident, fixed 2026-07-20 in `scripts/queue_topup.sh` commit `fee5f65`, MANDATORY).**
+  The PLANNER task that `queue_topup.sh` enqueues to regenerate `config/runner_backlog.jsonl`
+  when the backlog well runs low executes as a fully-autonomous LLM session — `cli_task_runner.sh`
+  spawns it with `claude -p --permission-mode bypassPermissions`, i.e. unrestricted Bash + MCP
+  tool access, identical to any other queued task. Its charter was only ever "read the roadmap
+  docs and append fresh lines to the backlog file," but nothing structural stopped the session
+  from instead calling `tasks_create`/`tasks_update` straight against the live gateway queue —
+  which is exactly what happened, twice: it wrote a 14-task speculative roadmap directly into
+  `connect`'s queue and mass-flipped `connect`'s 20 curated pending tasks to `blocked`,
+  displacing them and idling the runner overnight both times. It was never a cron schedule
+  (`schedules_list` showed 0 jobs) — it was this auto-enqueued task overreaching its own
+  instructions. **The contract: the ONLY write actions a PLANNER task may take are (1) appending
+  JSONL lines to `config/runner_backlog.jsonl` and (2) committing that file.** It MUST NOT call
+  the `tasks_create` or `tasks_update` MCP tools, MUST NOT run `schedule_task.sh` or curl the
+  gateway to create/modify tasks, and MUST NOT change the status of any existing task — pending,
+  blocked, or otherwise — in this or any other repo. New backlog items reach the live queue
+  later, ONLY via `queue_topup.sh`'s own pop path; a stale/superseded pending task should be
+  flagged in the PLANNER's commit message for a human to review, never touched directly. Two
+  independent enforcement layers, neither of which is this doc: (1) auto-generation is opt-in
+  (`RUNNER_PLANNER_AUTOGEN=1`) — by default the runner only *logs* that the backlog is low and
+  leaves regeneration to a human, granting no unattended write access overnight; (2) when
+  explicitly enabled, the inline prompt string `queue_topup.sh` passes to `schedule_task.sh`
+  carries this boundary verbatim. **This section is the durable, human-readable record of the
+  contract — if that inline prompt string is ever reworded or trimmed, the boundary itself (not
+  just today's phrasing of it) must survive the rewrite.** Full incident detail lives in the
+  `queue_topup.sh` comments above the PLANNER enqueue block and in commit `fee5f65`'s message.
+>>>>>>> Stashed changes
 
 ## 8. Management-Issue → Distributed-Rule Protocol (master repo, MANDATORY)
 
@@ -310,6 +342,7 @@ Many machines keep the dev workspace **inside Dropbox**. Dropbox then tries to i
 `node_modules` (tens of thousands of churning files per repo), build output, and cache dir — pegging
 CPU + RAM and making the Mac unusable. These dirs are **regenerable** (reinstalled / rebuilt per
 machine — the framework is Docker-based) and are **never version-controlled**, so syncing them is pure
+<<<<<<< Updated upstream
 waste. **No machine may sync `node_modules` to Dropbox. Build artifacts ride the same rule.**
 
 * **Mechanism:** Dropbox's official per-folder ignore flag — extended attribute
@@ -317,6 +350,25 @@ waste. **No machine may sync `node_modules` to Dropbox. Build artifacts ride the
   Reversible: `xattr -d com.dropbox.ignored <dir>`.
 * **Covered dirs:** `node_modules` (mandated) + `.next`, `dist`, `build`, `coverage`, `.turbo`,
   `.parcel-cache`, `.nuxt`, `.svelte-kit` (same class of regenerable junk).
+=======
+waste. **No machine may sync `node_modules` to Dropbox. Build artifacts — and every repo's `.git` dir — ride the same rule.**
+
+* **Mechanism:** Dropbox's official per-folder ignore flag — extended attribute
+  `com.dropbox.ignored=1`. The folder stays on local disk; Dropbox stops indexing/syncing it.
+  For regenerable artifact dirs this is reversible: `xattr -d com.dropbox.ignored <dir>`.
+  **`.git` is the exception — NOT reversible in practice.** Marking `.git` ignored PURGES it
+  from the Dropbox **server** as a sync-config change, not a user delete — there is no rewind
+  point once it's gone. This is what stranded Rummans-MacBook-Pro on 2026-08-27/28: it hadn't
+  synced since early July, another machine had already ignored its repos' `.git` dirs (the
+  2026-08-26 fleet sweep), and every managed repo's `.git` was simply gone with no Dropbox
+  restore possible. GitHub — not Dropbox — is the source of truth for `.git`; recovery used
+  `scripts/restore_git_metadata.sh` to rebuild from GitHub refs, not a Dropbox restore.
+* **Covered dirs:** `node_modules` (mandated) + `.next`, `dist`, `build`, `coverage`, `.turbo`,
+  `.parcel-cache`, `.nuxt`, `.svelte-kit` (same class of regenerable junk) + **`.git`** (VCS
+  metadata — thousands of churning objects, already replicated per machine via GitHub; Dropbox
+  racing two machines' writes into the same `.git` corrupts the repo). `node_modules` and `.git`
+  are *pruned* — marked but never descended into.
+>>>>>>> Stashed changes
 * **Enforcement:**
   * `scripts/dropbox_ignore_artifacts.sh` — idempotent; marks artifact dirs ignored. `--all` sweeps
     the entire Dropbox root (manual fleet sweep); no-arg scopes to the current repo (fast). macOS +
@@ -617,4 +669,44 @@ ladder now: **local qwen (trivial, free) → Sonnet 5 (default) → Opus 4.8 (fa
 capped)**, all under the daily/weekly credit pacing. Tests:
 `scripts/tests/test_runner_local_tier.sh` (8 cases, classifier), `scripts/tests/test_ollama_local_tier.sh`
 (resource-guard + git-plumbing unit tests), `scripts/tests/test_ollama_agent.py` (bounded
+<<<<<<< Updated upstream
 tool-loop unit tests against a fake transport).
+=======
+tool-loop unit tests against a fake transport). **End-to-end (2026-07-30):**
+`scripts/tests/test_runner_local_tier_e2e.sh` drives the real `cli_task_runner.sh` binary
+against a hermetic mock gateway + throwaway git fixture and proves a genuinely trivial-keyword
+task completes claim → dispatch (local provider) → review start-to-finish with the paid Sonnet
+CLI never invoked — distinct from the unit-level classifier/resource-guard checks above.
+
+## 19. Framework CLI install — registry-only `npm i -g ai-management`, NO EXCEPTION (fleet-wide, MANDATORY)
+
+> Operator directive (2026-07-22): a Mac was found running the framework CLI from a **local
+> tarball** (`@knofler/ai-management@0.2.0`, scoped, installed via `npm i -g ./*.tgz`) instead
+> of the published registry package. Tarball/scoped/link installs drift per-machine, silently
+> lag the module, and defeat the myAI-native propagation model (CLAUDE.md "After Any Framework
+> Change"). Every Mac must be **byte-identical**.
+
+**1. The ONLY sanctioned install, on every machine, always:**
+```bash
+npm i -g ai-management      # bare name, from the public npm registry — nothing else
+```
+**No exception.** Explicitly FORBIDDEN as the framework install path:
+- ❌ local tarball (`npm i -g ./ai-management-*.tgz`, `npm i -g <path>.tgz`)
+- ❌ the scoped name `@knofler/ai-management` (it is **not published** — a tarball-only artifact)
+- ❌ `npm link` / `npm i -g <local-dir>` / editable installs
+- ❌ hand-copying `AI/` folders as the propagation path (that is legacy `update_all.sh`, dormant repos only)
+
+**2. Propagation is module-based (never file-copy).** A framework change reaches the fleet by
+**publishing the module** — bump `package.json`, `npm publish` (user-owed Gate 0), then
+`npm i -g ai-management` on each machine. The hook `hooks/pre-tool/05-no-local-npm.sh` blocks
+project-local host `npm install` (use Docker) but **exempts global installs** so this path is
+never obstructed. Verify a machine is compliant: `myai root` must resolve to
+`…/node_modules/ai-management` (bare), and `myai --version` must match `npm view ai-management version`.
+
+**3. After install, manage EVERYTHING through the brain + the `ai-management` (`myai`) tool.**
+State, memory, and continuity live in the git-versioned **brain** (`brain_*` MCP tools /
+`brain` keywords); framework operations go through the **`myai` CLI** (`init`, `up`/`down`,
+`scan`, `new-app`, `connect`, `schedule`, `doctor`, `mcp`, `root`). No out-of-band manual
+file management of framework internals. This is the durable form of the operator directive:
+one install path, one management surface, identical on every Mac.
+>>>>>>> Stashed changes

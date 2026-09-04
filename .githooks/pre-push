@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# .githooks/pre-push — tracked-file hygiene gate at push time.
+#
+# Commit 4ece268 postmortem: a gutted .gitignore let six machine-local ledgers
+# (state/.*-metrics, state/.telegram-active-host, state/.token-rolling-cache,
+# state/pool-capacity.json) into the index, and they were PUSHED to test before
+# anyone noticed. This hook scans the exact tree of every ref being pushed
+# (scripts/check_tracked_hygiene.sh --ref <sha>) and refuses the push if any
+# denylisted machine-local file is tracked — the last local line of defense
+# before an offender reaches the remote.
+#
+# Installed via `scripts/install_git_hooks.sh` (sets core.hooksPath=.githooks).
+# Bypass only with `git push --no-verify` — a deliberate, visible choice.
+set -eu
+
+ROOT="$(git rev-parse --show-toplevel)"
+CHECK="$ROOT/scripts/check_tracked_hygiene.sh"
+[ -f "$CHECK" ] || CHECK="$ROOT/AI/scripts/check_tracked_hygiene.sh"
+[ -f "$CHECK" ] || exit 0   # checker not in this clone yet — never break pushes
+
+fail=0
+# stdin: "<local_ref> <local_sha> <remote_ref> <remote_sha>" per ref pushed.
+while read -r _lref lsha _rref _rsha; do
+    [ -n "${lsha:-}" ] || continue
+    case "$lsha" in
+        *[!0]*) ;;          # real sha — scan it
+        *) continue ;;      # all zeros — branch deletion, nothing to scan
+    esac
+    if ! bash "$CHECK" --repo "$ROOT" --ref "$lsha"; then
+        fail=1
+    fi
+done
+
+if [ "$fail" -ne 0 ]; then
+    {
+        echo "pre-push: refusing to push machine-local ledgers/state (see FIX above)."
+        echo "Untrack with 'git rm --cached <file>' + commit WITHOUT a pathspec,"
+        echo "or bypass deliberately with: git push --no-verify"
+    } >&2
+    exit 1
+fi
+exit 0

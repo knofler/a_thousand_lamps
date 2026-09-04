@@ -28,6 +28,17 @@ Wrap up the current work session and persist all context.
 > **The brain atom (`wrap up` step 1e) is the PRIMARY continuity record** — the full session
 > narrative lives there and every next session boots it via `brain_delta`. This handoff file is
 > now only the offline / any-device **fallback**. So write it thin: a delta, not a fresh essay.
+<<<<<<< Updated upstream
+=======
+>
+> **When you write that brain atom, ALWAYS pass an explicit `topic`** (ADR-020) — the session's
+> dominant theme from the controlled BRAIN_TOPICS set (`runner-ops`, `cost-policy`,
+> `gateway-infra`, `go-live`, `continuity`, `distribution`, `billing`, `brain`, `security`,
+> `docs` — canonical list: `BRAIN_TOPICS` in `runtime/src/core/brain.ts`). MCP: the `topic`
+> argument on `brain_commit`; bash fallback: `BRAIN_TOPIC=<topic> myai brain write …`. Omitting
+> it writes a warned `general` atom, which degrades the GOLD topic-index TOC and SILVER
+> per-topic sections into one giant bucket.
+>>>>>>> Stashed changes
 
 - Open `AI/state/AI_AGENT_HANDOFF.md`.
 - Update the `Last machine:` field with the current hostname (`hostname -s`).
@@ -40,6 +51,19 @@ Wrap up the current work session and persist all context.
 - Result target: header + ACTION + top-3 lines (a few KB), never the full ~28k-token history.
 - Everything the delta omits is recoverable from the brain (`brain_delta` / `brain log`) and the
   handoff archive — so the trim loses nothing, it just stops paying to re-read history every boot.
+<<<<<<< Updated upstream
+=======
+- **User-owed blockers — reference, don't retype:** if this session is blocked on a credential
+  or a decision only the operator can supply (an API key, a provisioning step, a billing/licensing
+  call), do **not** restate it in the handoff prose. Add/update one row in the master repo's
+  `config/user_blockers.md` via `./scripts/user_blockers.sh add <repo> "<blocker>" ["<notes>"]`
+  (managed repos: `./AI/scripts/user_blockers.sh`, or edit the master's copy directly), then just
+  point the handoff at it (e.g. "blocked — see config/user_blockers.md #<id>"). This keeps one
+  canonical fleet-wide list instead of every repo's handoff re-listing the same asks verbatim and
+  drifting out of sync. When the operator supplies it, resolve with
+  `./scripts/user_blockers.sh resolve <id>`. The dashboard's `/work` → "Blockers" tab renders the
+  current list read-only.
+>>>>>>> Stashed changes
 
 ### 4. Log to logs/claude_log.md
 
@@ -61,6 +85,21 @@ Append an entry to `logs/claude_log.md`:
 - ...
 ```
 
+<<<<<<< Updated upstream
+=======
+- **Agentic-fallback spend (if the lane ran this session):** the non-Claude
+  DeepSeek/Kimi fallback lane (`scripts/lib/agentic_fallback.sh`) keeps its
+  own real-$ day-ledger, separate from the Claude pacing ledger and otherwise
+  only visible by reading `~/.ai-cli-runner/agentic/` on the machine that ran
+  it. If `AGENTIC_FALLBACK` or `AGENTIC_OVERFLOW` was on this session, append
+  its summary under the entry above:
+  `source scripts/lib/agentic_fallback.sh && agentic_session_close_line`
+  — one ledger line (today's spend of the daily cap) plus the per-provider
+  pass-rate rollup. Same spend also shows as the "Agentic fallback" row on
+  the `/schedule` capacity panel (`state/pool-capacity.json`, refreshed by
+  `scripts/pool_capacity_snapshot.sh`).
+
+>>>>>>> Stashed changes
 ### 5. SONA Pattern Training
 
 Run end-of-session pattern training:
