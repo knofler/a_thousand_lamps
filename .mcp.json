@@ -1,10 +1,11 @@
 {
   "mcpServers": {
-    "ai-framework": {
-      "url": "http://localhost:3100/mcp",
-      "headers": {
-        "x-gateway-local-token": "${GATEWAY_LOCAL_TOKEN:-myai-local-bridge-dev}"
-      }
+    "myai": {
+      "command": "bash",
+      "args": [
+        "-c",
+        "r=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; for p in \"$r/AI/scripts/lib/mcp_myai_stdio.sh\" \"$r/scripts/lib/mcp_myai_stdio.sh\" \"${MYAI_HOME:-/nonexistent}/scripts/lib/mcp_myai_stdio.sh\" \"$HOME/.local/lib/node_modules/ai-management/scripts/lib/mcp_myai_stdio.sh\" /opt/homebrew/lib/node_modules/ai-management/scripts/lib/mcp_myai_stdio.sh /usr/local/lib/node_modules/ai-management/scripts/lib/mcp_myai_stdio.sh; do [ -f \"$p\" ] && exec bash \"$p\"; done; echo \"myai: mcp_myai_stdio.sh not found (repo AI/scripts/lib, MYAI_HOME, or a global ai-management install) \u2014 run: npm i -g ai-management\" >&2; exit 1"
+      ]
     },
     "context7": {
       "command": "npx",
@@ -30,27 +31,6 @@
     "dropbox": {
       "type": "http",
       "url": "https://mcp.dropbox.com/mcp"
-    },
-    "chrome-devtools": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@anthropic-ai/chrome-devtools-mcp-server"
-      ]
-    },
-    "stitch": {
-      "type": "http",
-      "url": "https://stitch.googleapis.com/mcp",
-      "headers": {
-        "X-Goog-Api-Key": "${STITCH_API_KEY}"
-      }
-    },
-    "docker": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "docker-mcp"
-      ]
     },
     "github": {
       "command": "npx",
