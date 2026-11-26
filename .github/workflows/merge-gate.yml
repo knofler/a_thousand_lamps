@@ -16,7 +16,7 @@ on:
 
 jobs:
   require-test-branch:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, myai-local]
     steps:
       - name: Check source branch
         run: |
