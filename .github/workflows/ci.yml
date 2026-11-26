@@ -9,8 +9,6 @@
 name: CI
 
 on:
-  push:
-    branches: [main, test]
   pull_request:
     branches: [main, test]
 
@@ -25,7 +23,7 @@ defaults:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, myai-local]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,7 +34,7 @@ jobs:
 
   type-check:
     name: Type-check
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, myai-local]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,7 +45,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, myai-local]
     services:
       mongo:
         image: mongo:7
@@ -76,7 +74,7 @@ jobs:
 
   deploy-check:
     name: Deploy Check
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, myai-local]
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     needs: [lint, type-check, test]
     steps:
